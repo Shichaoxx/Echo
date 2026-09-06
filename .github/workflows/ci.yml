@@ -1,0 +1,28 @@
+name: Checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  unit-and-public-files:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install test dependencies (no models)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install streamlit==1.63.0 numpy
+      - name: Run synthetic tests
+        env:
+          INTERVIEW_DATA_DIR: ${{ runner.temp }}/interview-test-data
+          INTERVIEW_SOURCE_DIR: ${{ runner.temp }}/interview-test-recordings
+        run: python -m unittest -q
+      - name: Check public files
+        run: python scripts/check_public.py
