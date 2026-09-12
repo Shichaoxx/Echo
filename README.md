@@ -60,6 +60,10 @@ flowchart LR
     H --> J[追加复盘笔记]
 ```
 
+## 面试归档
+
+双击 `scripts/archive.command`，按场次整理录屏入口、全部转写版本、复盘与练习，并保存台账快照。已有录屏路径保持不变，手写复盘不会被覆盖。目录约定与备份边界见 [归档指南](docs/archive.md)。
+
 ## 模型选择
 
 | 模型 | 精度 | 权重约大小 | 当前时间戳 |
@@ -97,7 +101,7 @@ Qwen 默认按最多 25 秒分块，尽量在低音量处切分，整场都会�
 | --- | --- |
 | [使用指南](docs/usage.md) | 模型、队列、命令行、备份和排错 |
 | [架构与流程图](docs/architecture.md) | 模块、状态机、数据流和版本关系 |
-| [版本记录](CHANGELOG.md) | 版本变化与兼容性 |
+| [版本记录](docs/changelog.md) | 版本变化与兼容性 |
 | [版本与打包](docs/releases.md) | 更新版本、打包源码 |
 
 ## 许可与上游
@@ -105,3 +109,13 @@ Qwen 默认按最多 25 秒分块，尽量在低音量处切分，整场都会�
 代码采用 [MIT License](LICENSE)。模型权重与依赖按各自许可证分发，发布包不包含模型。
 
 感谢 [Qwen3-ASR](https://huggingface.co/Qwen/Qwen3-ASR-1.7B)、[MLX Audio](https://github.com/Blaizzy/mlx-audio)、[MLX Whisper](https://github.com/ml-explore/mlx-examples/tree/main/whisper) 和 [Streamlit](https://github.com/streamlit/streamlit)。
+
+## 交互与 Codex 复盘
+
+全局队列显示执行、等待、完成与异常记录；等待任务可修改参数并保留审计记录，运行任务参数固定。转写设置按面试保留会话草稿，提交前显示范围与模型，并校验视频时长。
+
+Codex 在原存档目录维护 `复盘.md` 和根目录的 `面试总结.md`，Echo 读取展示。统一协议见 [Codex 复盘标准](docs/codex-review.md)。
+
+## 项目目录
+
+`echo/` 存放业务实现，`assets/` 存放样式，`tests/` 存放测试，`scripts/` 存放维护工具，`docs/` 存放文档。根目录仅保留常用入口与项目配置。双击 `start.command` 启动；原 CLI 命令保持兼容。发布产物位于 `.local/releases/`。

@@ -18,8 +18,8 @@ def main():
     if not re.fullmatch(r"\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?", version):
         raise SystemExit("Invalid VERSION")
     prefix = "echo-" + version
-    destination = public.ROOT / "dist"
-    destination.mkdir(exist_ok=True)
+    destination = public.ROOT / ".local" / "releases"
+    destination.mkdir(parents=True, exist_ok=True)
     output = destination / (prefix + ".tar.gz")
     # Build ordinary tar entries: no Git archive metadata, commit IDs or authors.
     with output.open("wb") as raw:

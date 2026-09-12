@@ -24,11 +24,11 @@ def git(*args):
 def scan(path, content):
     p = Path(path)
     reasons = []
-    if any(part in {".local", ".venv", ".git", "recordings", "dist", "__pycache__"} for part in p.parts):
+    if any(part in {".local", ".venv", ".git", "recordings", "dist", "__pycache__", "10_逐场面试", "20_跨场总结", "90_归档记录"} for part in p.parts):
         reasons.append("private-or-generated-directory")
     if p.suffix.lower() in BLOCKED_SUFFIXES or (p.name.startswith(".env") and p.name != ".env.example"):
         reasons.append("private-or-binary-file-type")
-    if p.name in {"transcript.txt", "transcript.json", "review.json", "preferences.json", "source_path.txt"}:
+    if p.name in {"transcript.txt", "transcript.json", "review.json", "preferences.json", "profile.json", "library.json", "source_path.txt", "archive_path.txt", "manifest.json", "档案.json"}:
         reasons.append("personal-output")
     try:
         value = content.decode("utf-8")

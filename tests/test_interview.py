@@ -6,7 +6,7 @@ import unittest
 import wave
 from unittest.mock import patch
 
-import interview as app
+from echo import interview as app
 
 
 class LedgerTests(unittest.TestCase):

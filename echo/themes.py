@@ -6,6 +6,7 @@ import tempfile
 
 # background, panel, sidebar, ink, muted, border, accent, soft, on-accent
 THEMES = {
+    "glass": ("雾白 · Glass", "light", ["#f5f6fa", "#ffffff", "#e9ecf6", "#202331", "#6f7487", "#e0e4ed", "#5968ca", "#e9edff", "#ffffff"]),
     "sage": ("雾松 · Light", "light", ["#f6f7f3", "#ffffff", "#eaf0e7", "#203d34", "#647461", "#dce4d6", "#35684d", "#dfead9", "#ffffff"]),
     "sand": ("暖砂 · Light", "light", ["#faf6ef", "#fffdf8", "#eee6d9", "#473d31", "#7a6a55", "#e3d8c5", "#966337", "#f0e2cb", "#ffffff"]),
     "sky": ("晴空 · Light", "light", ["#f3f6fb", "#ffffff", "#e7edf7", "#253b59", "#5e7391", "#d9e2ef", "#386cb0", "#e0eafa", "#ffffff"]),
@@ -50,4 +51,4 @@ def theme_css(key: str):
                    "danger": "#f1a69a" if mode == "dark" else "#a04835",
                    "danger-bg": "#482b2d" if mode == "dark" else "#f8e3df"})
     declarations = ";".join(f"--{k}:{v}" for k, v in values.items())
-    return f"<style>:root{{{declarations};color-scheme:{mode}}}.stApp{{color-scheme:{mode}}}</style>"
+    return f"<style>:root,.stApp{{{declarations};color-scheme:{mode}}}</style>"

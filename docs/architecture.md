@@ -92,3 +92,32 @@ erDiagram
 每场档案以路径建档，内容哈希用于变化识别。相同模型、来源及参数已有完成结果时复用；强制重跑保留旧版本。队列完成记录中的 run_id 是应用层关联。raw_segments 保留模型原始片段，展示片段包含核对注释和原录屏时间偏移。
 
 数据库以 CREATE TABLE IF NOT EXISTS 增量建表。v0.1.0 没有单独的迁移版本表；未来破坏性变更必须提供备份与迁移方案。
+
+## 源码目录
+
+```text
+Echo/
+├── start.command            双击启动
+├── app.py                   Streamlit 稳定入口
+├── interview.py             原 CLI 兼容入口
+├── queue_jobs.py            后台队列兼容入口
+├── echo/                    业务实现
+│   ├── workspace.py         详情与阅读界面
+│   ├── ui/                  全局队列及共享显示函数
+│   ├── interview.py         转写与台账
+│   ├── asr_models.py        模型适配
+│   └── ...                  队列、主题、复盘读取
+├── assets/                  样式
+├── tests/                   合成数据测试
+├── scripts/                 归档、扫描、发布等维护工具
+├── docs/                    使用、协议、开发与变更记录
+└── .local/                  本机数据入口（不进入 Git）
+```
+
+旧 CLI 和已启动队列继续使用根目录兼容入口。业务模块通过 `echo` 包导入；ROOT 始终指向项目根目录，因此 `.local` 与录屏配置不受源码移动影响。`python -m unittest -q` 从 tests 包发现测试。
+
+## 资料库与个人上下文
+
+`echo/library.py` 管理本机 `profile.json` 和 `library.json` 的原子写入、日期解析、公司归一及分组。覆盖值以稳定 interview_id 关联，不修改媒体台账；日期无法推断时留空，年份未知独立分组。Profile 由用户填写，供 Codex 作为待核对背景使用。
+
+`echo/ui/library_panel.py` 和 `echo/ui/profile.py` 负责导航、档案表单与个人资料页。`echo/ui/transcript.py` / `assets/transcript.js` 在客户端处理连续阅读、搜索和片段高亮，使用 textContent 渲染转写。时间戳通过局部播放器 ID 发送定位事件；`player_controls.js` 管理唯一音频实例。`assets/workspace.css` 提供基于主题变量的毛玻璃布局，保留原主题样式和队列组件。

@@ -5,7 +5,7 @@
 [data-testid="stToolbar"] button{color:var(--muted)!important}
 .block-container{max-width:1450px;padding:2.2rem 3.4rem 1rem}
 h1,h2,h3,h4,p{color:var(--ink)}
-[data-testid="stSidebar"]{background:var(--sidebar);border-right:1px solid var(--line);min-width:284px;max-width:300px}
+[data-testid="stSidebar"]{background:var(--sidebar);border-right:1px solid var(--line)}
 [data-testid="stSidebar"]>div:first-child{padding-top:1.8rem}
 [data-testid="stSidebar"] .block-container{padding:1.5rem}
 .brand{display:flex;gap:12px;align-items:center;font-size:25px;font-weight:700;letter-spacing:2px;margin:12px 0 48px}
@@ -110,4 +110,35 @@ audio{width:100%;border-radius:9px}
 @keyframes pulse{50%{opacity:.35}}@keyframes sweep{0%{transform:translateX(-100%)}100%{transform:translateX(440%)}}
 @media(prefers-reduced-motion:reduce){.pulse-dot,.task-sweep{animation:none}.task-fill{transition:none}}
 @media(max-width:600px){.task-card{padding:20px 17px}.task-heading h3{font-size:17px}.task-heading strong{font-size:24px}.task-steps{gap:12px}.task-meta,.ready-strip{flex-direction:column}.task-foot{line-height:1.8}}
+
+[data-testid="stExpander"] details, [data-testid="stExpander"] summary {background:var(--panel)!important;color:var(--ink)!important;border-color:var(--line)!important}
+[data-baseweb="popover"], [data-baseweb="popover"] ul, [role="listbox"], [role="option"] {background:var(--panel)!important;color:var(--ink)!important}
+[role="option"][aria-selected="true"], [role="option"]:hover {background:var(--soft)!important}
+[data-testid="stMetric"] {background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+[data-testid="stMetricValue"], [data-testid="stMetricLabel"] {color:var(--ink)!important}
+
+
+.sound-art{--motion:echo-sage;--tempo:3;--bar:6px;--round:10px;--glow:none}
+.sound-art i{width:var(--bar);border-radius:var(--round);box-shadow:var(--glow);transform-origin:center;animation:var(--motion) calc(var(--period) * var(--tempo)) ease-in-out infinite;animation-delay:var(--delay);will-change:transform}
+.sound-art.running{--tempo:1}.sound-art.queued{--tempo:2.1}
+.sound-art.theme-sage{--motion:echo-sage;--bar:6px;gap:7px}
+.sound-art.theme-sand{--motion:echo-sand;--bar:8px;--round:5px;gap:6px}
+.sound-art.theme-sky{--motion:echo-sky;--bar:4px;gap:9px}
+.sound-art.theme-midnight{--motion:echo-midnight;--bar:5px;--round:2px;--glow:0 0 12px color-mix(in srgb,var(--accent) 35%,transparent)}
+.sound-art.theme-forest{--motion:echo-forest;--bar:7px;--round:20px;gap:5px}
+.sound-art.theme-violet{--motion:echo-violet;--bar:5px;--round:10px;--glow:0 0 15px color-mix(in srgb,var(--accent) 35%,transparent)}
+@keyframes echo-sage{0%,100%{transform:scaleY(.65);opacity:.55}50%{transform:scaleY(1);opacity:.95}}
+@keyframes echo-sand{0%,100%{transform:scaleY(.7) translateY(3px)}50%{transform:scaleY(.98) translateY(-3px)}}
+@keyframes echo-sky{0%,100%{transform:scaleY(.45);opacity:.5}40%{transform:scaleY(1);opacity:1}70%{transform:scaleY(.72)}}
+@keyframes echo-midnight{0%,100%{transform:scaleY(.35)}25%{transform:scaleY(.9)}45%{transform:scaleY(.55)}65%{transform:scaleY(1)}85%{transform:scaleY(.65)}}
+@keyframes echo-forest{0%,100%{transform:scaleY(.55) scaleX(.8)}50%{transform:scaleY(1) scaleX(1.1)}}
+@keyframes echo-violet{0%,100%{transform:scaleY(.6) translateY(5px);opacity:.55}50%{transform:scaleY(1) translateY(-5px);opacity:1}}
+@media(prefers-reduced-motion:reduce){.sound-art i{animation:none!important;will-change:auto}}
+
+/* Keep reading above the fold and use compact contextual statistics. */
+.hero{padding:20px 0 18px}.hero h1{font-size:32px}.hero p{margin-bottom:12px}
+.sound-art{height:115px;transform:scale(.72);transform-origin:right center;margin-top:-20px;margin-bottom:-20px}
+.stat-grid{gap:8px;margin:10px 0 18px}.stat-card{padding:10px 14px}.stat-card>div{font-size:20px;margin-top:4px}
+[data-testid="stSidebar"] [data-testid="stSelectbox"]{margin-bottom:6px}
+.brand{margin-bottom:20px}
 </style>

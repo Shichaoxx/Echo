@@ -6,9 +6,9 @@ import unittest
 from unittest.mock import Mock, patch
 
 import numpy as np
-import asr_models as models
-import interview as core
-import test_interview as fixtures
+from echo import asr_models as models
+from echo import interview as core
+from tests import test_interview as fixtures
 
 
 class ModelAdapterTests(unittest.TestCase):

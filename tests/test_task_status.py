@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import unittest
-from task_status import duration_label, elapsed_seconds, estimate_remaining
+from echo.task_status import duration_label, elapsed_seconds, estimate_remaining
 
 
 class TaskStatusTests(unittest.TestCase):

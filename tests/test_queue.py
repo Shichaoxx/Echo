@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import Mock, patch
-import interview as core
-import queue_jobs as queue
-import test_interview as fixtures
+from echo import interview as core
+from echo import queue_jobs as queue
+from tests import test_interview as fixtures
 
 
 class QueueTests(unittest.TestCase):
@@ -60,3 +60,29 @@ class QueueTests(unittest.TestCase):
         queue.process_one(runner)
         runner.assert_not_called()
         self.assertEqual(queue.jobs()[0]["state"], "failed")
+
+    def test_revise_waiting_preserves_position_and_records_before_after(self):
+        task = queue.submit(self.key, self.options)
+        before = queue.jobs()[0]
+        queue.revise(task, {**self.options, 'start': 15, 'limit': 30})
+        after = queue.jobs()[0]
+        self.assertEqual(before['seq'], after['seq'])
+        runner = Mock(return_value={'id': 'result'})
+        queue.process_one(runner)
+        self.assertEqual(runner.call_args.kwargs['start'], 15)
+        with core.db() as c:
+            self.assertEqual(c.execute("SELECT count(*) FROM events WHERE kind='queue_updated'").fetchone()[0], 1)
+
+    def test_revise_cannot_change_running_job(self):
+        task = queue.submit(self.key, self.options)
+        with queue.db() as c:
+            c.execute("UPDATE queue_jobs SET state='running' WHERE id=?", (task,))
+        with self.assertRaises(ValueError):
+            queue.revise(task, {**self.options, 'limit': 30})
+        self.assertEqual(queue.jobs()[0]['options'], __import__('json').dumps(self.options, sort_keys=True, ensure_ascii=False))
+
+    def test_revise_rejects_duplicate(self):
+        queue.submit(self.key, self.options)
+        second = queue.submit(self.key, {**self.options, 'limit': 30})
+        with self.assertRaises(ValueError):
+            queue.revise(second, self.options)

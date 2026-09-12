@@ -3,7 +3,7 @@ from pathlib import Path
 import unittest
 
 
-spec = importlib.util.spec_from_file_location("public_check", Path(__file__).parent / "scripts" / "check_public.py")
+spec = importlib.util.spec_from_file_location("public_check", Path(__file__).resolve().parents[1] / "scripts" / "check_public.py")
 public = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(public)
 

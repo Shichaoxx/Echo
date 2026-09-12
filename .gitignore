@@ -28,3 +28,12 @@ dist/
 *.key
 .env.*
 !.env.example
+
+# Private archive views
+archives/
+10_逐场面试/
+20_跨场总结/
+90_归档记录/
+archive_path.txt
+profile.json
+library.json
