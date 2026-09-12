@@ -1,4 +1,5 @@
 """Explicit local ASR backends. No model code executes during UI import."""
+from echo.paths import ensure_data_directory
 from dataclasses import dataclass
 import json
 import os
@@ -143,7 +144,7 @@ def save_default_model(data, key):
     if key not in MODELS:
         raise ValueError("不支持的模型")
     data = Path(data)
-    data.mkdir(parents=True, exist_ok=True)
+    ensure_data_directory(data)
     path = data / "preferences.json"
     try:
         prefs = json.loads(path.read_text())

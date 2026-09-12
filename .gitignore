@@ -37,3 +37,6 @@ archives/
 archive_path.txt
 profile.json
 library.json
+
+# Local path configuration
+paths.json

@@ -137,18 +137,18 @@ def _build(source, data, destination, ledger):
 
 
 def main():
-    data = Path(os.environ.get('INTERVIEW_DATA_DIR', ROOT / '.local')).resolve()
-    source_file = data / 'source_path.txt'
-    archive_file = data / 'archive_path.txt'
+    import sys
+    sys.path.insert(0, str(ROOT))
+    from echo import paths
+    data = paths.data_directory(ROOT)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data', type=Path, default=data)
     parser.add_argument('--source', type=Path)
     parser.add_argument('--destination', type=Path)
     args = parser.parse_args()
     data = args.data.resolve()
-    source_file, archive_file = data / 'source_path.txt', data / 'archive_path.txt'
-    source = args.source or Path(os.environ.get('INTERVIEW_SOURCE_DIR') or (source_file.read_text().strip() if source_file.exists() else ROOT / 'recordings'))
-    destination = args.destination or Path(archive_file.read_text().strip() if archive_file.exists() else data / 'archives')
+    source = args.source or paths.source_directory(data)
+    destination = args.destination or paths.archive_directory(data)
     result = build(source, data, destination)
     print(f"已归档 {len(result['sessions'])} 场：{destination.resolve() / 'README.md'}")
     print(f"快照：{result['generation']}")

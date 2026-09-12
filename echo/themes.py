@@ -1,4 +1,5 @@
 """Six local workspace palettes and durable appearance preferences."""
+from echo.paths import ensure_data_directory
 import json
 from pathlib import Path
 import os
@@ -27,7 +28,7 @@ def load_theme(data: Path):
 def save_theme(data: Path, key: str):
     if key not in THEMES:
         raise ValueError("未知主题")
-    data.mkdir(parents=True, exist_ok=True)
+    ensure_data_directory(data)
     path = data / "preferences.json"
     try:
         prefs = json.loads(path.read_text(encoding="utf-8"))

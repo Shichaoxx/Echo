@@ -1,7 +1,6 @@
 """Local interview workspace. Start through start.command."""
 from html import escape
 import json
-import os
 from pathlib import Path
 import re
 import subprocess
@@ -16,7 +15,9 @@ from echo import interview as core
 from echo import queue_jobs as queue
 from echo import workspace_review as reviews
 from echo import library
+from echo import paths
 from echo.ui.library_panel import render_navigation, render_archive_settings
+from echo.ui.path_settings import render_path_settings
 from echo.ui.profile import render_profile
 from echo.transcription_ui import scope_label, media_duration, range_error
 from echo.asr_models import MODELS, LANGUAGES, model_name, model_ready, load_default_model, save_default_model
@@ -28,6 +29,13 @@ for draft_key, draft_value in st.session_state.get("setting_drafts", {}).items()
         st.session_state[draft_key] = draft_value
 
 st.set_page_config(page_title="回声 · Echo", page_icon="◉", layout="wide")
+try:
+    paths.ensure_data_directory(core.DATA)
+    source_root = paths.source_directory(core.DATA)
+    paths.output_directory(core.DATA)
+except (OSError, ValueError) as exc:
+    st.error(f"无法访问本地数据目录或路径设置：{exc}")
+    st.stop()
 if "appearance" not in st.session_state:
     st.session_state["appearance"] = load_theme(core.DATA)
 st.markdown(theme_css(st.session_state["appearance"]), unsafe_allow_html=True)
@@ -43,8 +51,6 @@ def highlighted(text, query):
                    for i, part in enumerate(re.split(f"({re.escape(query)})", text, flags=re.I)))
 
 
-source_config = core.DATA / "source_path.txt"
-source_root = Path(os.environ.get("INTERVIEW_SOURCE_DIR") or (source_config.read_text().strip() if source_config.is_file() else core.SOURCE)).resolve()
 try:
     library_store = library.read_store(core.DATA, "library.json")
     profile = library.read_store(core.DATA, "profile.json")
@@ -90,20 +96,7 @@ with st.sidebar:
                      key="appearance", on_change=lambda: save_theme(core.DATA, st.session_state["appearance"]))
         st.caption("已应用并保存：" + THEMES[st.session_state["appearance"]][0])
     st.divider()
-    with st.expander("导入与目录设置"):
-        source = st.text_input("面试目录", str(source_root))
-        if st.button("扫描新增录屏", type="primary", width="stretch"):
-            try:
-                with st.spinner("正在核对录屏…"):
-                    counts = core.scan(Path(source))
-                    source_config.write_text(str(Path(source).resolve()) + "\n", encoding="utf-8")
-                st.session_state["scan_message"] = f"新增 {counts['added']} 场 · 更新 {counts['changed']} 场 · 等待稳定 {counts['deferred']} 场"
-                st.rerun()
-            except Exception as exc:
-                st.error(str(exc))
-        st.caption("新增录屏独立建档，已有版本与笔记始终保留。")
-    if "scan_message" in st.session_state:
-        st.success(st.session_state.pop("scan_message"))
+    render_path_settings(core.DATA, core.scan)
     st.button("↻  刷新资料库", width="stretch")
     html('<div class="local-card"><span class="status-dot"></span> 本地工作空间<p>录屏与个人笔记保存在这台 Mac<br>多模型 · 本地转写</p></div>')
 
@@ -243,7 +236,11 @@ with manage_col.popover("管理这场 · 版本、转写与归档"):
                 queue.ensure_dispatcher()
                 st.session_state["submission_notice"] = "已加入队列，将按顺序处理。相同参数的等待任务不会重复添加。"
                 st.rerun()
-            core.DATA.mkdir(parents=True, exist_ok=True)
+            try:
+                paths.ensure_data_directory(core.DATA)
+            except (OSError, ValueError) as exc:
+                st.error(f"无法访问本地数据目录：{exc}")
+                st.stop()
             command = [sys.executable, str(core.ROOT / "interview.py"), "transcribe", item["id"],
                 "--model", selected_model, "--language", language, "--start", str(start), "--limit", str(limit),
                 "--chunk-seconds", str(chunk_seconds), "--prompt", prompt]
@@ -252,7 +249,10 @@ with manage_col.popover("管理这场 · 版本、转写与归档"):
             if force:
                 command.append("--force")
             with (core.DATA / "worker.log").open("ab") as log:
-                st.session_state["submitted_process"] = subprocess.Popen(command, cwd=core.ROOT, stdout=log, stderr=log, start_new_session=True)
+                st.session_state["submitted_process"] = subprocess.Popen(
+                    command, cwd=core.ROOT, stdout=log, stderr=log,
+                    env=paths.child_environment(core.DATA), start_new_session=True,
+                )
             st.rerun()
         if busy and not queue_mode:
             st.caption("已有任务正在运行，完成后可以提交新任务。")

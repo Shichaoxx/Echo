@@ -7,6 +7,7 @@ import time
 import uuid
 from contextlib import contextmanager
 from echo import interview as core
+from echo import paths
 
 
 @contextmanager
@@ -101,7 +102,7 @@ def process_one(runner=None):
 
 
 def dispatcher_active():
-    core.DATA.mkdir(parents=True, exist_ok=True)
+    paths.ensure_data_directory(core.DATA)
     with (core.DATA / "queue.lock").open("a") as f:
         try:
             fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -114,11 +115,11 @@ def ensure_dispatcher():
     if not dispatcher_active():
         with (core.DATA / "queue.log").open("ab") as log:
             subprocess.Popen([sys.executable, str(core.ROOT / "queue_jobs.py")], cwd=core.ROOT,
-                             stdout=log, stderr=log, start_new_session=True)
+                             stdout=log, stderr=log, start_new_session=True, env=paths.child_environment(core.DATA))
 
 
 def serve():
-    core.DATA.mkdir(parents=True, exist_ok=True)
+    paths.ensure_data_directory(core.DATA)
     with (core.DATA / "queue.lock").open("a") as f:
         try:
             fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)

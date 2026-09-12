@@ -28,7 +28,7 @@ def scan(path, content):
         reasons.append("private-or-generated-directory")
     if p.suffix.lower() in BLOCKED_SUFFIXES or (p.name.startswith(".env") and p.name != ".env.example"):
         reasons.append("private-or-binary-file-type")
-    if p.name in {"transcript.txt", "transcript.json", "review.json", "preferences.json", "profile.json", "library.json", "source_path.txt", "archive_path.txt", "manifest.json", "档案.json"}:
+    if p.name in {"transcript.txt", "transcript.json", "review.json", "preferences.json", "profile.json", "library.json", "source_path.txt", "archive_path.txt", "paths.json", "manifest.json", "档案.json"}:
         reasons.append("personal-output")
     try:
         value = content.decode("utf-8")

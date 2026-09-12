@@ -15,12 +15,12 @@ import sys
 import time
 import uuid
 import wave
+from echo import paths
 from echo.asr_models import DEFAULT_MODEL, MODELS, LANGUAGES, transcribe_audio, load_default_model
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA = Path(os.environ.get("INTERVIEW_DATA_DIR", ROOT / ".local")).resolve()
-SOURCE = Path(os.environ.get("INTERVIEW_SOURCE_DIR") or
-              ((DATA / "source_path.txt").read_text(encoding="utf-8").strip() if (DATA / "source_path.txt").is_file() else str(ROOT / "recordings"))).resolve()
+DATA = paths.data_directory(ROOT)
+SOURCE = ROOT / "recordings"  # Legacy default; scan reads current settings dynamically.
 MODEL = DEFAULT_MODEL
 MEDIA = {".mov", ".mp4", ".mkv", ".wav", ".mp3", ".m4a", ".webm"}
 PROMPT = "以下是中文技术面试，可能包含 Python、SQL、MySQL、Redis、Transformer、Attention、LLM、RAG、LoRA、SFT、DPO、PPO、Agent、推荐系统、Hive、Schema Linking、NL2SQL、rerank、召回、精排。"
@@ -32,7 +32,7 @@ def now():
 
 @contextmanager
 def db():
-    DATA.mkdir(parents=True, exist_ok=True)
+    paths.ensure_data_directory(DATA)
     connection = sqlite3.connect(DATA / "ledger.sqlite3", timeout=30)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA journal_mode=WAL")
@@ -77,8 +77,8 @@ def digest(path):
     return h.hexdigest()
 
 
-def scan(source=SOURCE, settle_seconds=60):
-    source = Path(source).resolve()
+def scan(source=None, settle_seconds=60):
+    source = Path(source).expanduser().resolve() if source is not None else paths.source_directory(DATA)
     if not source.is_dir():
         raise ValueError(f"录屏目录不存在：{source}")
     counts = dict(added=0, changed=0, unchanged=0, deferred=0)
@@ -211,7 +211,7 @@ class WorkerBusy(RuntimeError):
 
 @contextmanager
 def worker_lock():
-    DATA.mkdir(parents=True, exist_ok=True)
+    paths.ensure_data_directory(DATA)
     with (DATA / "worker.lock").open("a") as f:
         try:
             fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -242,7 +242,7 @@ def worker_active():
 
 
 def transcribe(key, *, model=MODEL, limit=0, prompt=PROMPT, force=False, engine=None, reuse_run=None,
-               start=0, language="zh", chunk_seconds=25, silence_filter=True):
+               start=0, language="zh", chunk_seconds=25, silence_filter=True, output_dir=None):
     if limit < 0 or start < 0:
         raise ValueError("起始位置和试听时长不能为负数")
     if model not in MODELS or language not in LANGUAGES:
@@ -282,7 +282,9 @@ def transcribe(key, *, model=MODEL, limit=0, prompt=PROMPT, force=False, engine=
         if previous and not force and Path(previous["output_dir"], "transcript.json").is_file():
             return dict(previous)
         run_id = uuid.uuid4().hex
-        output = DATA / "outputs" / key / run_id
+        output_root = Path(output_dir).expanduser().resolve() if output_dir else paths.output_directory(DATA)
+        paths.ensure_data_directory(output_root)
+        output = output_root / key / run_id
         with db() as c:
             c.execute("INSERT INTO runs(id,interview_id,source_sha256,model,options,state,started_at) VALUES(?,?,?,?,?,'running',?)",
                       (run_id, key, item["sha256"], model, options, now()))
@@ -320,6 +322,8 @@ def transcribe(key, *, model=MODEL, limit=0, prompt=PROMPT, force=False, engine=
             progress("保存转写与核对稿")
             if digest(path) != item["sha256"]:
                 raise ValueError("转写期间源录屏发生变化，结果不入库；请重新扫描")
+            paths.ensure_data_directory(DATA)
+            paths.ensure_data_directory(output_root)
             export_result(result, output, {"title": item["title"], "model": model,
                           "source_sha256": item["sha256"], "run_id": run_id,
                           "scope": f"{stamp(start)[:8]}–{stamp(start + result['duration'])[:8]}" if start or limit else "完整录屏", "created_at": now(), "options": settings})
@@ -355,15 +359,19 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("scan", "watch"):
         p = sub.add_parser(name)
-        p.add_argument("--source", type=Path, default=SOURCE)
+        p.add_argument("--source", type=Path, default=None)
         p.add_argument("--settle-seconds", type=int, default=60)
         if name == "watch":
             p.add_argument("--interval", type=int, default=60)
             p.add_argument("--process", action="store_true", help="自动转写新增/变更文件；失败记录需手动重试")
     sub.add_parser("list")
     sub.add_parser("models")
+    p = sub.add_parser("paths", help="查看或保存输入、输出目录")
+    p.add_argument("--source", type=Path)
+    p.add_argument("--output", type=Path)
     p = sub.add_parser("transcribe")
     p.add_argument("id")
+    p.add_argument("--output", type=Path, help="本次转写的输出根目录")
     p.add_argument("--model", default=load_default_model(DATA), choices=MODELS)
     p.add_argument("--start", type=int, default=0, help="从录屏第 N 秒开始")
     p.add_argument("--language", choices=LANGUAGES, default="zh")
@@ -382,17 +390,22 @@ def main():
         if args.command == "models":
             for key, spec in MODELS.items():
                 print(key, "—", spec.name, "—", spec.description)
+        elif args.command == "paths":
+            if args.source is not None or args.output is not None:
+                paths.save_directories(DATA, args.source or paths.source_directory(DATA), args.output or paths.output_directory(DATA))
+            print(json.dumps({"data": str(DATA), "source": str(paths.source_directory(DATA)), "output": str(paths.output_directory(DATA))}, ensure_ascii=False, indent=2))
         elif args.command == "scan":
             print(json.dumps(scan(args.source, args.settle_seconds), ensure_ascii=False))
         elif args.command == "watch":
             if args.interval < 10 or args.settle_seconds < 0:
                 parser.error("扫描间隔至少 10 秒，稳定时间不能为负数")
             while True:
-                print(now(), scan(args.source, args.settle_seconds), flush=True)
+                active_source = args.source or paths.source_directory(DATA)
+                print(now(), scan(active_source, args.settle_seconds), flush=True)
                 if args.process:
                     active_model = load_default_model(DATA)
                     for item in interviews():
-                        if not Path(item["path"]).is_relative_to(args.source.resolve()):
+                        if not Path(item["path"]).is_relative_to(active_source.resolve()):
                             continue
                         prior = [r for r in runs(item["id"]) if r["source_sha256"] == item["sha256"] and r["model"] == active_model and json.loads(r["options"])["limit"] == 0 and json.loads(r["options"]).get("start", 0) == 0]
                         if not prior:
@@ -405,7 +418,7 @@ def main():
             for item in interviews():
                 print(item["id"], item["title"], runs(item["id"])[0]["state"] if runs(item["id"]) else "待转写")
         elif args.command == "transcribe":
-            print(json.dumps(transcribe(args.id, model=args.model, limit=args.limit, prompt=args.prompt, force=args.force, reuse_run=args.reuse_run, start=args.start, language=args.language, chunk_seconds=args.chunk_seconds, silence_filter=not args.no_silence_filter), ensure_ascii=False))
+            print(json.dumps(transcribe(args.id, model=args.model, limit=args.limit, prompt=args.prompt, force=args.force, reuse_run=args.reuse_run, start=args.start, language=args.language, chunk_seconds=args.chunk_seconds, silence_filter=not args.no_silence_filter, output_dir=args.output), ensure_ascii=False))
         elif args.command == "note":
             add_note(args.id, args.body)
         elif args.command == "history":

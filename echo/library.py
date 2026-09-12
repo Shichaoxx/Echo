@@ -1,4 +1,5 @@
 """Local profile and library views; never rename or relocate source media."""
+from echo.paths import ensure_data_directory
 from collections import OrderedDict
 from datetime import date
 import json
@@ -19,7 +20,7 @@ def read_store(data: Path, name: str):
 
 
 def write_store(data: Path, name: str, value: dict):
-    data.mkdir(parents=True, exist_ok=True)
+    ensure_data_directory(data)
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=data, delete=False) as f:

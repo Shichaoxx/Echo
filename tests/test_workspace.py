@@ -1,9 +1,14 @@
 """UI state checks use a temporary ledger; never start a real ASR worker."""
+import os
+from pathlib import Path
+import shutil
+import time
 import unittest
 from unittest.mock import patch
 from streamlit.testing.v1 import AppTest
 from echo import interview as core
 from echo import queue_jobs as queue
+from echo import paths
 from tests import test_interview as fixtures
 
 
@@ -21,6 +26,81 @@ class WorkspaceTests(unittest.TestCase):
             c.execute("INSERT INTO runs(id,interview_id,source_sha256,model,options,state,started_at) VALUES(?,?,?,?,?,'running',?)",
                       ("test-run", self.item["id"], self.item["sha256"], core.MODEL, '{"limit":0}', core.now()))
             c.execute("INSERT INTO progress VALUES(?,?,?,?,?)", ("test-run", "转写中", 4, 10, core.now()))
+
+    def test_directory_save_scan_and_new_output_preserve_history(self):
+        previous = core.transcribe(self.item["id"], engine=self.fixture.fake_engine)
+        previous_output = Path(previous["output_dir"])
+        incoming = self.fixture.source.parent.resolve() / "new recordings"
+        incoming.mkdir()
+        recording = incoming / "另一场.wav"
+        recording.write_bytes(self.fixture.audio.read_bytes())
+        os.utime(recording, (time.time() - 120, time.time() - 120))
+        destination = self.fixture.source.parent.resolve() / "new transcripts"
+
+        app = AppTest.from_file(str(core.ROOT / "app.py")).run()
+        app.text_input(key="source-directory").set_value(str(incoming)).run()
+        self.assertTrue(next(b for b in app.button if b.label == "扫描新增录屏").disabled)
+        app.text_input(key="output-directory").set_value(str(destination))
+        with patch.object(core, "scan") as scan:
+            app.button(key="save-directories").click().run()
+            scan.assert_not_called()
+        self.assertFalse(app.exception)
+        self.assertTrue(any("历史结果保留当前位置" in message.value for message in app.success))
+
+        app = AppTest.from_file(str(core.ROOT / "app.py")).run()
+        self.assertEqual(app.text_input(key="source-directory").value, str(incoming))
+        self.assertEqual(app.text_input(key="output-directory").value, str(destination))
+        next(b for b in app.button if b.label == "扫描新增录屏").click().run()
+        self.assertFalse(app.exception)
+        self.assertEqual(len(core.interviews()), 2)
+        imported = next(item for item in core.interviews() if item["path"] == str(recording))
+        current = core.transcribe(imported["id"], engine=self.fixture.fake_engine)
+        self.assertTrue(Path(current["output_dir"]).is_relative_to(destination))
+        self.assertEqual(core.runs(self.item["id"])[0]["output_dir"], str(previous_output))
+        self.assertTrue((previous_output / "transcript.json").is_file())
+
+    def test_invalid_directory_save_keeps_current_preferences(self):
+        destination = self.fixture.source.parent.resolve() / "transcripts"
+        paths.save_directories(core.DATA, str(self.fixture.source), str(destination))
+        missing = self.fixture.source.parent / "missing" / "recordings"
+        app = AppTest.from_file(str(core.ROOT / "app.py")).run()
+        app.text_input(key="source-directory").set_value(str(missing))
+        app.button(key="save-directories").click().run()
+        self.assertFalse(app.exception)
+        self.assertTrue(app.error)
+        self.assertEqual(paths.source_directory(core.DATA), self.fixture.source.resolve())
+        self.assertEqual(paths.output_directory(core.DATA), destination)
+        self.assertFalse(missing.parent.exists())
+
+    def test_missing_data_parent_shows_error_without_recreating_it(self):
+        missing_parent = self.fixture.source.parent / "removed-project"
+        with patch.object(core, "DATA", missing_parent / "data"), \
+                patch.object(core, "interviews") as interviews, \
+                patch.object(queue, "ensure_dispatcher") as dispatcher:
+            app = AppTest.from_file(str(core.ROOT / "app.py")).run()
+        self.assertFalse(app.exception)
+        self.assertTrue(any("无法访问本地数据目录" in error.value for error in app.error))
+        self.assertFalse(missing_parent.exists())
+        interviews.assert_not_called()
+        dispatcher.assert_not_called()
+
+    def test_deleted_active_data_directory_stops_the_next_render(self):
+        app = AppTest.from_file(str(core.ROOT / "app.py")).run()
+        shutil.rmtree(core.DATA)
+        with patch.object(queue, "ensure_dispatcher") as dispatcher:
+            app.run()
+        self.assertFalse(app.exception)
+        self.assertTrue(any("数据目录已移动或删除" in error.value for error in app.error))
+        self.assertFalse(core.DATA.exists())
+        dispatcher.assert_not_called()
+
+    def test_invalid_path_config_shows_a_startup_error(self):
+        (core.DATA / "paths.json").write_text("{invalid", encoding="utf-8")
+        with patch.object(core, "interviews") as interviews:
+            app = AppTest.from_file(str(core.ROOT / "app.py")).run()
+        self.assertFalse(app.exception)
+        self.assertTrue(any("路径设置" in error.value for error in app.error))
+        interviews.assert_not_called()
 
     def test_live_progress_disables_duplicate_submit(self):
         self.running()

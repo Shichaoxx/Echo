@@ -6,6 +6,20 @@
 
 Qwen 默认使用标准精度。可以指定语言、技术术语提示、起始位置、片段长度和 10–60 秒分段。默认 25 秒；时长不是总转写范围。近乎静音过滤阈值为 -55 dBFS，特别轻的声音可能被跳过，可关闭。空文本与过滤块会记录在 JSON 中。
 
+## 输入与输出目录
+
+侧栏「导入与目录设置」分别填写媒体输入目录和结果输出目录。先保存目录，再扫描新增录屏；保存配置本身不会扫描或提交转写。输入目录需已经存在，输出用于保存以后生成的转写版本，包括 TXT、SRT、JSON、Markdown 和回听音频。PDF、Word 等正文文档尚不作为转写输入。
+
+| 用途 | 优先级，从高到低 |
+| --- | --- |
+| 运行数据根 | `INTERVIEW_DATA_DIR` → 项目下 `.local/` |
+| 媒体输入 | `INTERVIEW_SOURCE_DIR` → 数据根内 `paths.json` → 旧 `source_path.txt` → 项目下 `recordings/` |
+| 结果输出 | `INTERVIEW_OUTPUT_DIR` → 数据根内 `paths.json` → 数据根内 `outputs/` |
+
+环境变量覆盖本机保存值；要让界面保存的路径生效，请清除对应环境变量后重新启动。自定义目录的父目录需存在。路径配置与业务数据保存在本机，不进入 Git。旧 `source_path.txt` 仍可读取，新设置统一写入 `paths.json`。配置中的相对路径以数据根为基准；数据根上级目录范围内的路径保存为相对形式，便于整体移动工作目录。
+
+更换输入目录不会搬移原始录屏，也不会删除原台账；更换输出目录不会迁移旧版本，已有结果仍从台账记录的位置读取。改变数据根前，先停止全部 Echo 进程，再备份并迁移原数据；直接指向空目录会得到另一份空台账。迁移结果文件后，还需处理历史记录中的绝对路径，不能仅修改新结果输出位置。
+
 ## 队列与进度
 
 「队列模式」默认开启，按提交顺序逐场处理。任务保存提交时的模型、语言、提示和范围；后续修改界面不改变已有任务。关闭开关只影响后续提交，已排队任务继续。取消仅适用于等待项。
@@ -17,16 +31,21 @@ Qwen 默认使用标准精度。可以指定语言、技术术语提示、起始
 ## 命令行
 
 ```sh
+.venv/bin/python interview.py paths
+.venv/bin/python interview.py paths --source "/path/to/recordings" --output "/path/to/transcripts"
 .venv/bin/python interview.py scan --source "/path/to/recordings"
 .venv/bin/python interview.py list
 .venv/bin/python interview.py models
 .venv/bin/python interview.py transcribe <ID> --start 300 --limit 180
+.venv/bin/python interview.py transcribe <ID> --output "/path/to/transcripts"
 .venv/bin/python interview.py transcribe <ID> --language zh --chunk-seconds 25
 .venv/bin/python interview.py transcribe <ID> --model mlx-community/whisper-large-v3-mlx
 .venv/bin/python interview.py note <ID> '补充复盘记录'
 .venv/bin/python interview.py history
 .venv/bin/python interview.py watch --source "/path/to/recordings" --interval 60
 ```
+
+`paths` 查看当前生效目录，带 `--source` 或 `--output` 保存目录。`scan --source`、`watch --source` 和 `transcribe --output` 是当前命令的路径选择，不修改已保存配置。已有同参数的完成结果仍会复用；需要在新目录重新生成时，使用 `--force` 保留旧版本并创建新版本。自定义数据根可通过 `INTERVIEW_DATA_DIR="/path/to/local-data"` 加在命令前。
 
 `watch --process` 是直接串行处理模式，不通过 UI 队列；已有完整尝试不会无限重试。建议不要同时启用自动处理和手动批量提交，以免重复工作。仅扫描模式可共存。
 
@@ -35,12 +54,15 @@ Qwen 默认使用标准精度。可以指定语言、技术术语提示、起始
 ## 数据位置与备份
 
 - `.local/ledger.sqlite3`：档案、运行、进度、事件、笔记与队列。
-- `.local/outputs/<ID>/<RUN_ID>/`：转写、字幕、核对稿和回听音频。
+- `.local/paths.json`：已保存的输入与输出目录。
+- `.local/outputs/<ID>/<RUN_ID>/`：默认的转写、字幕、核对稿和回听音频位置；自定义输出后使用新目录。
 - `.local/preferences.json`：主题及模型偏好。
 - `.local/worker.log`、`.local/queue.log`：诊断日志。
-- `INTERVIEW_SOURCE_DIR` 优先于本机 `.local/source_path.txt`，最后回落到 `recordings/`。路径配置不会进入发布包。
+- `.local/profile.json`、`.local/library.json`：个人背景、资料库分类和展示偏好。
 
-备份前先等待任务结束并停止界面、队列和扫描进程，再复制本地数据目录及原始录屏。模型缓存可以排除；Git 同步不等于个人资料备份。
+以上 `.local/` 均指默认配置；使用自定义数据根时，台账、配置、偏好和日志随之改变。备份前先等待任务结束并停止界面、队列和扫描进程，再复制本地数据目录、全部结果输出目录、原始录屏及外部复盘文档。模型缓存可以排除；Git 同步不等于个人资料备份。
+
+若 `.local` 是外部符号链接，备份时应确认目标数据也被复制。移动项目后检查链接、配置和台账中的旧路径；源码移动本身不会更新它们。失效链接、缺失父目录或运行期间消失的数据根会明确报错，后台不再自动重建旧目录。修正后重新启动服务。
 
 ## 排错
 
@@ -50,6 +72,9 @@ Qwen 默认使用标准精度。可以指定语言、技术术语提示、起始
 | 首次使用较久 | 网络、磁盘空间，模型可能仍在下载 |
 | 术语错误或静音幻觉 | 用有对话的片段试转；补充提示；人工回听 |
 | 队列没有前进 | 当前任务、进程锁及本机 queue.log |
+| 数据目录或符号链接失效 | 停止全部 Echo 进程，检查目录与链接，确认原台账位置后修正配置并重启 |
+| 保存目录后仍显示旧值 | 检查是否有 `INTERVIEW_SOURCE_DIR` 或 `INTERVIEW_OUTPUT_DIR` 覆盖 |
+| 更换输出目录后旧结果不可读 | 新目录只用于新结果；恢复旧结果路径，或另行迁移历史路径 |
 | 进程中断 | 先核对已有版本，再重新提交；不自动盲目重跑 |
 | 源文件发生变化 | 重新扫描后提交新任务 |
 | 时间戳看起来很粗 | Qwen 当前是音频块范围，非逐词对齐 |
@@ -58,7 +83,7 @@ Qwen 默认使用标准精度。可以指定语言、技术术语提示、起始
 
 侧栏「工作区」在面试详情和全局队列之间切换。详情只显示本场执行进度与排队提示；全局队列集中显示所有任务、等待参数修改及历史。点击其他面试会返回详情。等待参数保存保留原排队顺序，并记录修改前后参数；已开始的任务不能修改。
 
-六套主题同时切换背景、控件、声波柱形与动画节奏，并保存选择。声波按本场状态调整节奏，是装饰动效，不代表真实音频振幅。系统开启减少动态效果时停止动画。
+主题同时切换背景、控件与装饰效果，并保存选择。声波按本场状态调整节奏，是装饰动效，不代表真实音频振幅。系统开启减少动态效果时停止动画。
 
 转写设置按面试保留当前浏览器会话草稿，切换模型或工作区后可继续编辑。刷新或新开会话不承诺恢复尚未提交的草稿；已提交任务参数持久保存在台账。
 
