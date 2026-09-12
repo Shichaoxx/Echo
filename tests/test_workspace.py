@@ -14,6 +14,13 @@ from tests import test_interview as fixtures
 
 class WorkspaceTests(unittest.TestCase):
     def setUp(self):
+        # Each UI test owns its directory settings. Inherited launcher/CI overrides
+        # must not lock its widgets or send synthetic outputs outside its fixture.
+        environment = patch.dict(os.environ)
+        environment.start()
+        self.addCleanup(environment.stop)
+        for name in ("INTERVIEW_DATA_DIR", "INTERVIEW_SOURCE_DIR", "INTERVIEW_OUTPUT_DIR"):
+            os.environ.pop(name, None)
         self.fixture = fixtures.LedgerTests()
         self.fixture.setUp()
         self.addCleanup(self.fixture.doCleanups)
@@ -71,6 +78,37 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(paths.source_directory(core.DATA), self.fixture.source.resolve())
         self.assertEqual(paths.output_directory(core.DATA), destination)
         self.assertFalse(missing.parent.exists())
+
+    def test_environment_overrides_keep_managed_directories_read_only(self):
+        source = self.fixture.source.resolve()
+        destination = source.parent / "transcripts"
+        paths.save_directories(core.DATA, str(source), str(destination))
+        configuration = core.DATA / "paths.json"
+        saved_configuration = configuration.read_bytes()
+        managed_source = source.parent / "managed recordings"
+        managed_source.mkdir()
+        managed_output = source.parent / "managed transcripts"
+
+        for variable, directory, widget, editable_widget in (
+            ("INTERVIEW_SOURCE_DIR", managed_source, "source-directory", "output-directory"),
+            ("INTERVIEW_OUTPUT_DIR", managed_output, "output-directory", "source-directory"),
+        ):
+            with self.subTest(variable=variable), patch.dict(os.environ, {variable: str(directory)}):
+                app = AppTest.from_file(str(core.ROOT / "app.py")).run()
+                self.assertFalse(app.exception)
+                self.assertTrue(app.text_input(key=widget).disabled)
+                self.assertEqual(app.text_input(key=widget).value, str(directory))
+                self.assertFalse(app.text_input(key=editable_widget).disabled)
+                self.assertTrue(any(variable in caption.value for caption in app.caption))
+
+                # The underlying save API also rejects a conflicting preference,
+                # even if another caller bypasses the disabled UI control.
+                with self.assertRaisesRegex(ValueError, variable):
+                    paths.save_directories(core.DATA, str(source), str(destination))
+                self.assertEqual(configuration.read_bytes(), saved_configuration)
+
+        self.assertEqual(paths.source_directory(core.DATA), source)
+        self.assertEqual(paths.output_directory(core.DATA), destination)
 
     def test_missing_data_parent_shows_error_without_recreating_it(self):
         missing_parent = self.fixture.source.parent / "removed-project"
