@@ -115,7 +115,7 @@ def ensure_dispatcher():
     if not dispatcher_active():
         with (core.DATA / "queue.log").open("ab") as log:
             subprocess.Popen([sys.executable, str(core.ROOT / "queue_jobs.py")], cwd=core.ROOT,
-                             stdout=log, stderr=log, start_new_session=True, env=paths.child_environment(core.DATA))
+                             stdout=log, stderr=log, start_new_session=paths.child_starts_session(), env=paths.child_environment(core.DATA))
 
 
 def serve():

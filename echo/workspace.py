@@ -251,7 +251,7 @@ with manage_col.popover("管理这场 · 版本、转写与归档"):
             with (core.DATA / "worker.log").open("ab") as log:
                 st.session_state["submitted_process"] = subprocess.Popen(
                     command, cwd=core.ROOT, stdout=log, stderr=log,
-                    env=paths.child_environment(core.DATA), start_new_session=True,
+                    env=paths.child_environment(core.DATA), start_new_session=paths.child_starts_session(),
                 )
             st.rerun()
         if busy and not queue_mode:

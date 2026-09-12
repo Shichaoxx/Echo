@@ -105,3 +105,8 @@ def child_environment(data):
     # Share the active data root. Input/output remain dynamic so saved changes reach
     # an already running dispatcher at the start of its next task.
     return {**os.environ, "INTERVIEW_DATA_DIR": str(Path(data).resolve())}
+
+
+def child_starts_session():
+    """A desktop supervisor owns the complete backend group until app exit."""
+    return os.environ.get("ECHO_DESKTOP_MANAGED") != "1"

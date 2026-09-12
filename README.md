@@ -4,7 +4,9 @@
 
 运行在 Apple Silicon Mac 上的本地面试复盘工作台。用本地模型把录屏转成文字，方便回听和记笔记，不需要云端推理 API key。v1.0.0 是首个正式源码版本，通过浏览器访问本机服务。
 
-`v1.0.1` · `macOS / Apple Silicon` · `Python 3.13 已验证` · `MIT`
+`v1.1.0-alpha.1` · `macOS / Apple Silicon` · `Python 3.13 已验证` · `MIT`
+
+> 当前分支是 [macOS App 开发版](docs/desktop.md)。稳定源码版本为 `v1.0.1`；原有前端草稿保留在历史开发工作区。
 
 ## 功能
 
