@@ -20,7 +20,7 @@ from echo.asr_models import DEFAULT_MODEL, MODELS, LANGUAGES, transcribe_audio, 
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = paths.data_directory(ROOT)
-SOURCE = ROOT / "recordings"  # Legacy default; scan reads current settings dynamically.
+SOURCE = ROOT / "recordings"  # Legacy import compatibility only; never an implicit scan target.
 MODEL = DEFAULT_MODEL
 MEDIA = {".mov", ".mp4", ".mkv", ".wav", ".mp3", ".m4a", ".webm"}
 PROMPT = "以下是中文技术面试，可能包含 Python、SQL、MySQL、Redis、Transformer、Attention、LLM、RAG、LoRA、SFT、DPO、PPO、Agent、推荐系统、Hive、Schema Linking、NL2SQL、rerank、召回、精排。"
@@ -82,8 +82,16 @@ def scan(source=None, settle_seconds=60):
     if not source.is_dir():
         raise ValueError(f"录屏目录不存在：{source}")
     counts = dict(added=0, changed=0, unchanged=0, deferred=0)
-    for path in sorted(source.rglob("*")):
+    excluded = paths.source_exclusions(DATA, source)
+    candidates = []
+    for directory, folders, files in os.walk(source):
+        folders[:] = sorted(name for name in folders if not (Path(directory) / name).is_symlink()
+                            and not any((Path(directory) / name).resolve().is_relative_to(root) for root in excluded))
+        candidates.extend(Path(directory) / name for name in sorted(files))
+    for path in candidates:
         if path.is_symlink() or not path.is_file() or path.suffix.lower() not in MEDIA:
+            continue
+        if any(path.resolve().is_relative_to(root) for root in excluded):
             continue
         stat = path.stat()
         if time.time() - stat.st_mtime < settle_seconds or not stat.st_size:
@@ -120,9 +128,13 @@ def scan(source=None, settle_seconds=60):
     return counts
 
 
-def interviews():
+def interviews(source=None):
+    """Read the preserved ledger, optionally restricted to one selected folder."""
     with db() as c:
-        return [dict(r) for r in c.execute("SELECT * FROM interviews ORDER BY path")]
+        items = [dict(r) for r in c.execute("SELECT * FROM interviews ORDER BY path")]
+    if source is not None:
+        items = [item for item in items if paths.media_in_source(DATA, item["path"], source=source)]
+    return items
 
 
 def runs(key):
@@ -181,7 +193,10 @@ def annotate_audio(result, audio):
 
 
 def export_result(result, output, metadata):
-    output.mkdir(parents=True, exist_ok=False)
+    names = ('transcript.json', 'transcript.txt', 'transcript.srt', 'review.md', 'review.json', 'audio.mp3')
+    if any((output / name).exists() for name in names):
+        raise FileExistsError("结果目录已有文件，拒绝覆盖历史结果")
+    output.mkdir(parents=True, exist_ok=True)
     segments = result.get("segments", [])
     (output / "transcript.json").write_text(json.dumps({**metadata, "result": result}, ensure_ascii=False, indent=2), encoding="utf-8")
     (output / "transcript.txt").write_text(result.get("text", "").strip() + "\n", encoding="utf-8")
@@ -284,7 +299,10 @@ def transcribe(key, *, model=MODEL, limit=0, prompt=PROMPT, force=False, engine=
         run_id = uuid.uuid4().hex
         output_root = Path(output_dir).expanduser().resolve() if output_dir else paths.output_directory(DATA)
         paths.ensure_data_directory(output_root)
-        output = output_root / key / run_id
+        output = paths.mirrored_output(DATA, path, output_root)
+        # Never overwrite an earlier result; additional runs live in a version directory.
+        if any((output / name).exists() for name in ('transcript.json', 'transcript.txt', 'transcript.srt', 'review.md', 'review.json', 'audio.mp3')):
+            output = output / "versions" / run_id
         with db() as c:
             c.execute("INSERT INTO runs(id,interview_id,source_sha256,model,options,state,started_at) VALUES(?,?,?,?,?,'running',?)",
                       (run_id, key, item["sha256"], model, options, now()))
@@ -392,21 +410,24 @@ def main():
                 print(key, "—", spec.name, "—", spec.description)
         elif args.command == "paths":
             if args.source is not None or args.output is not None:
-                paths.save_directories(DATA, args.source or paths.source_directory(DATA), args.output or paths.output_directory(DATA))
-            print(json.dumps({"data": str(DATA), "source": str(paths.source_directory(DATA)), "output": str(paths.output_directory(DATA))}, ensure_ascii=False, indent=2))
+                config = paths._config(DATA)
+                use_default_output = (args.output is None and not os.environ.get("INTERVIEW_OUTPUT_DIR")
+                                      and (not config.get("output") or config.get("output_mode") == "default"))
+                paths.save_directories(DATA, args.source or paths.source_directory(DATA),
+                                       args.output or paths.output_directory(DATA), default_output=use_default_output)
+            source = paths.source_directory(DATA, required=False)
+            print(json.dumps({"data": str(DATA), "source": str(source) if source is not None else None, "output": str(paths.output_directory(DATA))}, ensure_ascii=False, indent=2))
         elif args.command == "scan":
             print(json.dumps(scan(args.source, args.settle_seconds), ensure_ascii=False))
         elif args.command == "watch":
             if args.interval < 10 or args.settle_seconds < 0:
                 parser.error("扫描间隔至少 10 秒，稳定时间不能为负数")
             while True:
-                active_source = args.source or paths.source_directory(DATA)
+                active_source = args.source.expanduser().resolve() if args.source is not None else paths.source_directory(DATA)
                 print(now(), scan(active_source, args.settle_seconds), flush=True)
                 if args.process:
                     active_model = load_default_model(DATA)
-                    for item in interviews():
-                        if not Path(item["path"]).is_relative_to(active_source.resolve()):
-                            continue
+                    for item in interviews(active_source):
                         prior = [r for r in runs(item["id"]) if r["source_sha256"] == item["sha256"] and r["model"] == active_model and json.loads(r["options"])["limit"] == 0 and json.loads(r["options"]).get("start", 0) == 0]
                         if not prior:
                             try:

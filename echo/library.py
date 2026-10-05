@@ -1,12 +1,12 @@
-"""Local profile and library views; never rename or relocate source media."""
+"""Local interview metadata and project groups; never rename or relocate source media."""
 from echo.paths import ensure_data_directory
-from collections import OrderedDict
 from datetime import date
 import json
 import os
 from pathlib import Path
 import re
 import tempfile
+import uuid
 
 
 def read_store(data: Path, name: str):
@@ -31,24 +31,6 @@ def write_store(data: Path, name: str, value: dict):
     finally:
         if temporary and Path(temporary).exists():
             Path(temporary).unlink()
-
-
-PROFILE_FIELDS = {"name": "姓名 / 昵称", "role": "目标岗位", "resume": "简历版本 / 本地路径",
-                  "background": "项目与实习背景", "focus": "当前练习重点"}
-
-
-def save_profile(data: Path, fields: dict):
-    profile = read_store(data, "profile.json")
-    profile.update({key: str(fields.get(key, "")).strip() for key in PROFILE_FIELDS})
-    write_store(data, "profile.json", profile)
-    return profile
-
-
-def profile_context(profile: dict):
-    lines = ["# 个人 Profile", "", "以下为用户填写的背景资料；复盘中的项目事实仍需结合简历与原始材料核对。", ""]
-    for key, label in PROFILE_FIELDS.items():
-        lines += [f"## {label}", str(profile.get(key, "")).strip() or "未填写", ""]
-    return "\n".join(lines)
 
 
 def inferred_metadata(item: dict):
@@ -93,34 +75,33 @@ def update_metadata(data: Path, key: str, **fields):
                 raise ValueError("日期请填写 YYYY-MM-DD 或 MM-DD；未知可留空。")
         fields["date"] = value
     store = read_store(data, "library.json")
+    if fields.get("project_id") and fields["project_id"] not in store.get("projects", {}):
+        raise ValueError("所选项目分组不存在，请刷新后重试。")
     store.setdefault("interviews", {}).setdefault(key, {}).update(fields)
     write_store(data, "library.json", store)
 
 
-def save_view(data: Path, view: str):
-    if view not in ("时间", "公司"):
-        raise ValueError("未知整理方式")
+def manage_project(data, value):
+    """Project membership is local metadata; removing a group never removes files."""
     store = read_store(data, "library.json")
-    store["view"] = view
+    projects = store.setdefault("projects", {})
+    operation, key = value.get("operation"), value.get("id")
+    if operation not in ("create", "rename", "delete"):
+        raise ValueError("未知项目分组操作")
+    if operation != "create" and (not isinstance(key, str) or key not in projects):
+        raise ValueError("项目分组不存在")
+    if operation == "delete":
+        del projects[key]
+        for meta in store.get("interviews", {}).values():
+            if meta.get("project_id") == key:
+                meta["project_id"] = ""
+    else:
+        name = value.get("name")
+        if not isinstance(name, str) or not name.strip() or len(name.strip()) > 80:
+            raise ValueError("分组名称请填写 1–80 个字符")
+        name = name.strip()
+        if any(p["name"] == name and i != key for i, p in projects.items()):
+            raise ValueError("已有同名项目分组")
+        projects[key if operation == "rename" else uuid.uuid4().hex[:12]] = {"name": name}
     write_store(data, "library.json", store)
-
-
-def date_key(meta: dict):
-    day = meta["date"]
-    return (len(day) == 10, day)
-
-
-def group_items(items: list, store: dict, view: str):
-    """Explicit-year dates first; dates with unknown year kept in separate groups."""
-    ordered = sorted(items, key=lambda item: (date_key(metadata(item, store)), item["title"], item["id"]), reverse=True)
-    if view == "公司":
-        ordered.sort(key=lambda item: (metadata(item, store)["company"] == "未分类", metadata(item, store)["company"]))
-    groups = OrderedDict()
-    for item in ordered:
-        meta = metadata(item, store)
-        day = meta["date"]
-        group = meta["company"] if view == "公司" else (
-            day[:7].replace("-", " 年 ") + " 月" if len(day) == 10 else
-            "年份未标注 · " + day[:2] + " 月" if day else "日期未标注")
-        groups.setdefault(group, []).append(item)
-    return groups
+    return projects

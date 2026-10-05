@@ -40,3 +40,32 @@ library.json
 
 # Local path configuration
 paths.json
+echos/
+
+# Personal memory and generated review files (scanner also checks forced adds).
+memory/
+Memory/
+MEMORY/
+memories/
+runtime/
+.runtime/
+.echo-memory.json
+memory-locations.json
+memory-locations.lock
+MEMORY.md
+profile.md
+review.md
+复盘.md
+*.复盘.md
+*.review.md
+transcript.txt
+transcript.json
+transcript.md
+review.json
+preferences.json
+source_path.txt
+
+# Protocol documentation and generic Markdown templates remain publishable.
+!docs/memory.md
+!docs/templates/**/
+!docs/templates/**/*.md

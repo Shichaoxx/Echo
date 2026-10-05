@@ -11,6 +11,9 @@ from echo import interview as app
 
 class LedgerTests(unittest.TestCase):
     def setUp(self):
+        environment = patch.dict(os.environ, {"INTERVIEW_SOURCE_DIR": "", "INTERVIEW_OUTPUT_DIR": ""})
+        environment.start()
+        self.addCleanup(environment.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         root = Path(self.temp.name)
@@ -45,14 +48,41 @@ class LedgerTests(unittest.TestCase):
         self.scan()
         self.assertEqual(len(app.interviews()), 2)
 
+    def test_folder_switch_scopes_view_and_preserves_original_ledger(self):
+        app.paths.save_directories(app.DATA, self.source, self.source / "echo", default_output=True)
+        self.scan()
+        original = app.interviews()[0]
+        app.add_note(original["id"], "synthetic note")
+        other = self.source.with_name("incoming-other")
+        other.mkdir()
+        (other / "second.wav").write_bytes(self.audio.read_bytes())
+        app.paths.save_directories(app.DATA, other, other / "echo", default_output=True)
+        app.scan(settle_seconds=0)
+        selected = app.interviews(app.paths.source_directory(app.DATA))
+        self.assertEqual(len(selected), 1)
+        self.assertEqual(Path(selected[0]["path"]).parent, other.resolve())
+        self.assertEqual(len(app.interviews()), 2)
+        self.assertEqual(app.interviews(self.source), [original])
+        with app.db() as c:
+            self.assertEqual(c.execute("SELECT body FROM notes WHERE interview_id=?", (original["id"],)).fetchone()[0],
+                             "synthetic note")
+
+    def test_explicit_scan_does_not_silently_save_folder_selection(self):
+        self.assertEqual(self.scan()["added"], 1)
+        self.assertIsNone(app.paths.source_directory(app.DATA, required=False))
+        self.assertFalse((app.DATA / "paths.json").exists())
+
     def test_preview_full_force_and_notes_keep_history(self):
+        app.paths.save_directories(app.DATA, self.source, self.source / 'echo', default_output=True)
         self.scan()
         key = app.interviews()[0]["id"]
         preview = app.transcribe(key, limit=1, engine=self.fake_engine)
+        self.assertEqual(Path(preview['output_dir']), (self.source / 'echo').resolve())
         again = app.transcribe(key, limit=1, engine=lambda *a, **k: self.fail("重复推理"))
         self.assertEqual(preview["id"], again["id"])
         full = app.transcribe(key, engine=self.fake_engine)
         newer = app.transcribe(key, force=True, engine=self.fake_engine)
+        self.assertEqual(Path(newer['output_dir']).parent, (self.source / 'echo/versions').resolve())
         self.assertEqual(len({preview["id"], full["id"], newer["id"]}), 3)
         for run in app.runs(key):
             self.assertTrue(Path(run["output_dir"], "transcript.srt").is_file())

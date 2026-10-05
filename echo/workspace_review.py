@@ -42,14 +42,36 @@ def read_document(path, *, kind, interview_id=None):
     return {'body': text[match.end():] if match else text, 'metadata': meta, 'warnings': warnings}
 
 
-def review_path(recording):
+def review_path(recording, data=None, *, previous_outputs=()):
     path = Path(recording)
     media = {'.mov', '.mp4', '.mkv', '.wav', '.mp3', '.m4a', '.webm'}
-    # Multiple recordings in one folder must not share another interview's review.
-    specific = path.with_name(path.stem + '.复盘.md')
-    if specific.exists() or (path.parent.is_dir() and sum(p.is_file() and p.suffix.lower() in media for p in path.parent.iterdir()) > 1):
-        return specific
-    return path.parent / '复盘.md'
+    # New reviews belong with outputs. Existing source-side documents stay where
+    # they are; resolving a path never migrates or overwrites interview material.
+    multiple = path.parent.is_dir() and sum(p.is_file() and p.suffix.lower() in media for p in path.parent.iterdir()) > 1
+
+    def destination(root):
+        specific = root / (path.stem + '.复盘.md')
+        return specific if specific.exists() or multiple else root / '复盘.md'
+
+    legacy = destination(path.parent)
+    if data is None:
+        return legacy
+    from echo import paths
+    target = destination(paths.mirrored_output(data, path, paths.output_directory(data)))
+    if target.is_file():
+        return target
+    if legacy.is_file():
+        return legacy
+    # Changing the output preference must not hide an existing Codex review.
+    # The ledger keeps prior output locations; later ASR runs live in versions/.
+    for output in previous_outputs:
+        root = Path(output)
+        if root.parent.name == 'versions':
+            root = root.parent.parent
+        previous = destination(root)
+        if previous.is_file():
+            return previous
+    return target
 
 
 def template(item, runs):
