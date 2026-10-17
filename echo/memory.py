@@ -137,7 +137,12 @@ def _check_tree(data, source, root, bound):
     if not marker.is_file():
         _fail("unowned_directory", "Memory 目录已存在但没有归属标记，不会接管或覆盖。")
     owner = _json_file(marker)
-    if owner != {"schema_version": 1, "source_directory": str(source), "data_directory": str(data)}:
+    expected = {"schema_version": 1, "source_directory": str(source), "data_directory": str(data)}
+    from echo import storage
+    book = storage.manifest(data)
+    if book is not None:
+        expected['library_id'] = book['id']
+    if owner != expected:
         _fail("location_conflict", "Memory 目录的归属与当前资料库不一致，不会读取或改写。")
     # Topic contents stay private; inspect entry types only, never Markdown bodies.
     for folder, directories, files in os.walk(root, followlinks=False):
@@ -225,6 +230,10 @@ def initialize(data, *, expected_source=None, expected_root=None):
                 root.parent.mkdir(exist_ok=True)
                 root.mkdir(mode=0o700)
                 owner = {"schema_version": 1, "source_directory": str(source), "data_directory": str(data)}
+                from echo import storage
+                book = storage.manifest(data)
+                if book is not None:
+                    owner['library_id'] = book['id']
                 for name, body in ((OWNER, json.dumps(owner, ensure_ascii=False, indent=2) + "\n"),
                                    ("MEMORY.md", INDEX), ("profile.md", PROFILE)):
                     with (root / name).open("x", encoding="utf-8") as handle:

@@ -119,12 +119,23 @@ def scan(source=None, settle_seconds=60):
                     event(c, old["id"], "source_changed", {"before": old["sha256"], "after": sha})
                 counts["changed" if changed else "unchanged"] += 1
             else:
+                missing = [row for row in c.execute("SELECT * FROM interviews WHERE sha256=?", (sha,))
+                           if not Path(row['path']).exists() and Path(row['path']).is_relative_to(source)]
+                if len(missing) == 1:
+                    previous = missing[0]
+                    c.execute("UPDATE interviews SET path=?,title=?,size=?,mtime_ns=?,updated_at=? WHERE id=?",
+                              (str(path), path.parent.name + " / " + path.stem, stat.st_size, stat.st_mtime_ns, now(), previous['id']))
+                    event(c, previous['id'], 'source_relocated', {'before': previous['path'], 'after': str(path)})
+                    counts['changed'] += 1
+                    continue
                 key = uuid.uuid4().hex[:12]
                 c.execute("INSERT INTO interviews VALUES(?,?,?,?,?,?,?,?)",
                           (key, str(path), path.parent.name + " / " + path.stem,
                            sha, stat.st_size, stat.st_mtime_ns, now(), now()))
                 event(c, key, "discovered", {"path": str(path), "sha256": sha})
                 counts["added"] += 1
+    from echo import storage
+    storage.sync_sessions(DATA, interviews())
     return counts
 
 
@@ -299,7 +310,8 @@ def transcribe(key, *, model=MODEL, limit=0, prompt=PROMPT, force=False, engine=
         run_id = uuid.uuid4().hex
         output_root = Path(output_dir).expanduser().resolve() if output_dir else paths.output_directory(DATA)
         paths.ensure_data_directory(output_root)
-        output = paths.mirrored_output(DATA, path, output_root)
+        from echo import storage
+        output = (storage.transcription_directory(DATA, key, run_id) if output_dir is None else None) or paths.mirrored_output(DATA, path, output_root)
         # Never overwrite an earlier result; additional runs live in a version directory.
         if any((output / name).exists() for name in ('transcript.json', 'transcript.txt', 'transcript.srt', 'review.md', 'review.json', 'audio.mp3')):
             output = output / "versions" / run_id

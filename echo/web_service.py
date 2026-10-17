@@ -29,7 +29,7 @@ import threading
 from urllib.parse import parse_qs, unquote, urlsplit
 import uuid
 
-from echo import interview as core, library, memory, paths, queue_jobs as queue, workspace_review
+from echo import interview as core, library, memory, paths, queue_jobs as queue, workspace_review, storage
 from echo.asr_models import LANGUAGES, MODELS, load_default_model, model_ready, save_default_model
 from echo.transcription_ui import media_duration, range_error
 
@@ -96,7 +96,7 @@ class WebService:
         source, output = paths.source_directory(self.data, required=False), paths.output_directory(self.data)
         return {"data": str(self.data), "source": str(source) if source else "", "output": str(output),
                 "output_layout": paths._config(self.data).get("output_layout", "mirror"),
-                "source_configured": source is not None,
+                "managed": storage.root(self.data) is not None, "source_configured": source is not None,
                 "source_exists": bool(source and source.is_dir()), "output_exists": output.is_dir(),
                 "output_mode": "custom" if os.environ.get("INTERVIEW_OUTPUT_DIR") else paths._config(self.data).get("output_mode", "custom" if paths._config(self.data).get("output") else "default")}
 
@@ -302,11 +302,16 @@ class WebService:
 
     def details(self, key, run_id=None):
         item, runs = self.item(key), self.runs(key)
-        run = next((r for r in runs if r["id"] == run_id), None) if run_id else next((r for r in runs if r["state"] == "completed"), None)
+        preferred = storage.selected_run(self.data, key)
+        run = next((r for r in runs if r["id"] == run_id), None) if run_id else (
+            next((r for r in runs if r['id'] == preferred and r['state'] == 'completed' and r['result_available']), None)
+            or next((r for r in runs if r["state"] == "completed" and r['result_available']), None))
         if run_id and run is None:
             raise APIError(404, "这份录音没有指定的转写版本")
         result = self.result(run)
         warnings = []
+        if preferred and not run_id and (not run or run['id'] != preferred):
+            warnings.append('采用版本不可读，暂时展示可用历史版本；请恢复文件或重新选择采用版本。')
         if run and not result:
             warnings.append("这个版本的结果文件已移动或缺失，可新建转写版本。")
         if run and run["source_sha256"] != item["sha256"]:
@@ -317,13 +322,16 @@ class WebService:
         source_duration = duration
         if duration is None and result:
             duration = result.get("source_start", 0) + result.get("duration", 0)
-        review_path = workspace_review.review_path(item["path"], self.data, previous_outputs=[
+        review_path = storage.review(self.data, key) or workspace_review.review_path(item["path"], self.data, previous_outputs=[
             row["output_dir"] for row in runs if row["state"] == "completed" and row.get("output_dir")])
         review = workspace_review.read_document(review_path, kind="interview", interview_id=key)
+        if review and run and review['metadata'].get('source_run_ids') and run['id'] not in review['metadata']['source_run_ids']:
+            warnings.append('当前浏览的转写版本未被这份复盘引用，请核对版本后再使用结论。')
         with core.db() as c:
             notes = [dict(row) for row in c.execute("SELECT seq,at,body FROM notes WHERE interview_id=? ORDER BY seq DESC", (key,))]
         item["metadata"] = library.metadata(item, library.read_store(self.data, "library.json"))
-        return {"item": item, "runs": runs, "run": run, "segments": result.get("segments", []),
+        return {"item": item, "runs": runs, "run": run, "preferred_run_id": preferred,
+                "documents": storage.documents(self.data, key), "segments": result.get("segments", []),
                 "notes": notes, "draft": self.draft(key),
                 "review": {"body": "", **(review or {}), "path": str(review_path), "exists": review_path.is_file()},
                 "duration": duration, "source_duration": source_duration, "result_duration": result.get("duration"),
@@ -600,6 +608,13 @@ class WebHandler(BaseHTTPRequestHandler):
 
     def get_api(self, path, query):
         service = self.service
+        if path == '/api/overview':
+            return self.json(storage.overview(service.data, service.library()['items']))
+        if path == '/api/material':
+            key = query.get('interview', [None])[0]
+            if key:
+                service.item(key)
+            return self.json(storage.read_material(service.data, query.get('id', [''])[0], key))
         if path == "/api/memory":
             return self.json(memory.status(service.data))
         if path == "/api/library":
@@ -616,7 +631,10 @@ class WebHandler(BaseHTTPRequestHandler):
         if operation == "handoff":
             return self.json(service.handoff(key, run_id))
         item, runs = service.item(key), service.runs(key)
-        run = next((r for r in runs if r["id"] == run_id), None) if run_id else next((r for r in runs if r["state"] == "completed"), None)
+        preferred = storage.selected_run(service.data, key)
+        run = next((r for r in runs if r["id"] == run_id), None) if run_id else (
+            next((r for r in runs if r['id'] == preferred and r['state'] == 'completed' and r['result_available']), None)
+            or next((r for r in runs if r["state"] == "completed" and r['result_available']), None))
         if run_id and run is None:
             raise APIError(404, "未找到指定转写版本")
         if operation in ("media", "waveform"):
@@ -648,6 +666,17 @@ class WebHandler(BaseHTTPRequestHandler):
 
     def post_api(self, path, value):
         service = self.service
+        if path == '/api/navigation':
+            key = _text(value.get('interview_id'), '场次', 100)
+            item = service.item(key)
+            if paths.source_directory(service.data, required=False) and not paths.media_in_source(service.data, item['path']):
+                raise APIError(409, '场次不属于当前资料库')
+            position = _number(value.get('position', 0), '播放位置')
+            run_id = value.get('run_id')
+            if run_id is not None and not any(r['id'] == run_id for r in service.runs(key)):
+                raise APIError(400, '转写版本不属于当前场次')
+            storage.save_navigation(service.data, {'interview_id': key, 'run_id': run_id, 'position': position})
+            return self.json({'saved': True})
         if path == "/api/memory/init":
             state = memory.status(service.data)
             if not state["source_directory"]:
@@ -665,7 +694,8 @@ class WebHandler(BaseHTTPRequestHandler):
         if path == "/api/import":
             return self.json(service.import_media(value))
         if path == "/api/scan":
-            return self.json(core.scan())
+            with service.lock:
+                return self.json(core.scan())
         if path == "/api/settings":
             source = _text(value.get("source"), "输入目录", 8192)
             output = _text(value.get("output"), "输出目录", 8192)
@@ -681,6 +711,8 @@ class WebHandler(BaseHTTPRequestHandler):
                 changing_paths = (str(requested_source) != current["source"]
                                   or str(requested_output) != current["output"]
                                   or value.get("output_layout", current["output_layout"]) != current["output_layout"])
+                if changing_paths and storage.root(service.data) is not None:
+                    raise APIError(409, '当前资料库已登记。搬迁时请停止服务并使用资料库重关联工具；切换资料库请使用它的 .state 启动。')
                 if changing_paths and (core.worker_active() or any(job["state"] in {"queued", "running"} for job in queue.jobs())):
                     raise APIError(409, "还有转写任务在排队或运行。请等待完成或取消排队后，再切换面试文件夹、输出目录或目录结构。")
                 paths.save_directories(service.data, source, output, default_output=value.get("output_mode") == "default", output_layout=value.get("output_layout"))
@@ -702,13 +734,21 @@ class WebHandler(BaseHTTPRequestHandler):
             if job["state"] != "cancelled":
                 raise APIError(409, "任务已经开始，未中断正在处理的任务")
             return self.json({"id": match[1], "state": "cancelled"})
-        match = re.fullmatch(r"/api/interviews/([a-zA-Z0-9_-]+)/(draft|metadata)", path)
+        match = re.fullmatch(r"/api/interviews/([a-zA-Z0-9_-]+)/(draft|metadata|preferred-run)", path)
         if not match:
             raise APIError(404, "未找到此操作")
         key, operation = match.groups()
         if operation == "draft":
             return self.json(service.save_draft(key, value))
         service.item(key)
+        if operation == 'preferred-run':
+            run_id = _text(value.get('run_id'), '采用版本', 100)
+            run = next((r for r in service.runs(key) if r['id'] == run_id), None)
+            if not run or run['state'] != 'completed' or not run['result_available']:
+                raise APIError(400, '只能采用本场已完成且文件可读的版本')
+            with service.lock:
+                storage.select_run(service.data, key, run_id)
+            return self.json({'preferred_run_id': run_id})
         fields = {"company", "round", "date", "tags", "archived", "project_id"}
         if set(value) - fields:
             raise APIError(400, "包含未知资料字段")
