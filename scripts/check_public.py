@@ -12,12 +12,12 @@ BLOCKED_SUFFIXES = {".mov", ".mp4", ".mkv", ".wav", ".mp3", ".m4a", ".webm",
                     ".db", ".log", ".safetensors", ".npz", ".pem", ".key"}
 PRIVATE_DIRECTORIES = {".local", ".venv", ".git", ".cache", "recordings", "dist",
                        "__pycache__", "archives", "memory", "memories", "runtime",
-                       ".runtime", "10_逐场面试", "20_跨场总结", "90_归档记录"}
+                       ".runtime", ".state", "10_逐场面试", "20_跨场总结", "90_归档记录"}
 PRIVATE_FILENAMES = {
     "transcript.txt", "transcript.json", "transcript.md", "review.json",
     "review.md", "复盘.md", "memory.md", "profile.md", "preferences.json",
     "profile.json", "library.json", "source_path.txt", "archive_path.txt",
-    "paths.json", "manifest.json", "档案.json", ".echo-memory.json",
+    "paths.json", "manifest.json", "interview.json", "navigation.json", "migration.json", "档案.json", ".echo-memory.json",
     "memory-locations.json", "memory-locations.lock",
 }
 CONTEXT_FILENAMES = {"project_context.md", "personal_context.md"}

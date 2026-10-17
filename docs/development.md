@@ -29,6 +29,12 @@ Echo 0.0 是本地 Web 工作台，围绕用户自选文件夹、回放、转写
 
 `queue.lock` 约束调度器，`worker.lock` 约束推理资源。活动任务期间拒绝改变输入、输出或输出结构，避免已排队任务写到另一文件夹。关闭浏览器不终止后台任务。
 
+## 资料库扩展
+
+`echo/storage.py` 负责资料库清单、稳定场次位置、采用版本、材料索引和回听位置；`echo/migrate_library.py` 提供离线预览、备份、迁移和失败恢复。托管资料库的运行数据位于 `echo/.state`，旧 `.local` 模式继续兼容。目录结构、搬迁重关联和限制见[资料库整理](library-storage.md)。
+
+`GET /api/overview` 汇总当前资料库；`GET /api/material?id=...&interview=...` 只读取已登记的 Markdown 材料。`POST /api/interviews/{id}/preferred-run` 校验版本归属和文件可用性，`POST /api/navigation` 保存场次与原媒体时间。所有接口沿用本机会话和写入校验。普通 Markdown 仅展示，不代表完成或确认。
+
 ## 改动约定
 
 开发前检查 Git 状态，保留已有未提交工作。测试只用临时目录和合成输入，真实面试资料不进入源码、测试、日志示例或截图。界面调整不重启正在运行的任务；数据库兼容历史数据，结果和笔记保持追加。

@@ -69,3 +69,10 @@ source_path.txt
 !docs/memory.md
 !docs/templates/**/
 !docs/templates/**/*.md
+
+# Managed library state and manifests
+.state/
+interview.json
+navigation.json
+migration.json
+.echo-backup-*/

@@ -145,6 +145,9 @@ def save_directories(data, source, output, *, default_output=False, output_layou
     if layout not in ("mirror", "company"):
         raise ValueError("未知输出目录结构")
     value.update({"schema_version": 1, "source": _portable(source, data), "output": _portable(output, data), "output_mode": "default" if default_output else "custom", "output_layout": layout})
+    if value.get('library_root'):
+        value['source'] = os.path.relpath(source, Path(data).resolve())
+        value['output'] = os.path.relpath(output, Path(data).resolve())
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=data, delete=False) as handle:

@@ -46,7 +46,7 @@
   const draft = () => drafts.get(currentId());
   const offset = () => Math.max(0, Number(current?.media_offset) || 0);
   const sourceTime = () => offset() + (audio.currentTime || 0);
-  const stateLabels = {queued:'等待中',running:'正在处理',succeeded:'已完成',completed:'已完成',done:'已完成',failed:'失败',cancelled:'已取消',canceled:'已取消',pending:'待转写',ready:'可回听',imported:'待转写'};
+  const stateLabels = {queued:'等待中',running:'正在处理',succeeded:'已完成',completed:'已转写',done:'已完成',failed:'失败',cancelled:'已取消',canceled:'已取消',pending:'待转写',ready:'可回听',imported:'待转写'};
   const completed = state => ['succeeded', 'completed', 'done'].includes(state);
   const time = seconds => { const n = Math.max(0, Math.floor(Number(seconds) || 0)); return n >= 3600 ? `${Math.floor(n / 3600)}:${String(Math.floor(n / 60) % 60).padStart(2,'0')}:${String(n % 60).padStart(2,'0')}` : `${String(Math.floor(n / 60)).padStart(2,'0')}:${String(n % 60).padStart(2,'0')}`; };
   const text = (tag, value, className) => { const el = document.createElement(tag); el.textContent = value; if (className) el.className = className; return el; };
@@ -190,15 +190,16 @@
   $('global-retry').addEventListener('click', () => initialize());
   function showView(next) {
     view = next; $('queue-view').hidden = next !== 'queue';
-    $('welcome-view').hidden = next !== 'guide' && (next === 'queue' || !!current);
+    if ($('overview-view')) $('overview-view').hidden = next !== 'overview';
+    $('welcome-view').hidden = next !== 'guide' && (next === 'queue' || next === 'overview' || !!current);
     ['record-header','workspace','player'].forEach(id => $(id).hidden = next !== 'record' || !current);
     $('video-stage').hidden = next !== 'record' || !current || !videoOpen;
     if (next !== 'record') audio.pause();
-    $('breadcrumb-current').textContent = next === 'queue' ? '处理队列' : next === 'guide' || !current ? '使用指南' : '资料库';
+    $('breadcrumb-current').textContent = next === 'overview' ? '总览与备考' : next === 'queue' ? '处理队列' : next === 'guide' || !current ? '使用指南' : '资料库';
     document.querySelectorAll('[data-view]').forEach(button => button.classList.toggle('active', button.dataset.view === (next === 'record' && !current ? 'guide' : next)));
     $('shell').classList.remove('sidebar-mobile-open');
   }
-  document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => { showView(button.dataset.view); if (view === 'queue') refreshQueue(); }));
+  document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => { showView(button.dataset.view); if (view === 'queue') refreshQueue(); if (view === 'overview') refreshOverview(); }));
   $('sidebar-stow').addEventListener('click', () => { $('shell').classList.remove('sidebar-mobile-open'); if (!matchMedia('(max-width:700px)').matches) $('shell').classList.add('sidebar-hidden'); });
   $('sidebar-toggle').addEventListener('click', () => { $('shell').classList.toggle(matchMedia('(max-width:700px)').matches ? 'sidebar-mobile-open' : 'sidebar-hidden'); });
   function applySidebarWidth() {
@@ -356,14 +357,17 @@
     const parsed = rawDate ? new Date(rawDate) : null;
     const when = parsed && !Number.isNaN(parsed.getTime()) ? parsed.toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}) : rawDate ? String(rawDate).slice(0,16).replace('T',' ') : '';
     const options = run.options || {}, start = Number(options.start) || 0;
-    const range = options.limit ? `${time(start)}–${time(start + Number(options.limit))}` : start ? `${time(start)} 起` : '完整录音';
-    return [modelName, when, range, stateLabels[run.state] || run.state].filter(Boolean).join(' · ');
+    const range = options.limit ? `${time(start)}–${time(start + Number(options.limit))}` : start ? `${time(start)} 起` : '从头转写 · 覆盖待核对';
+    return [run.id === current?.preferred_run_id ? '✓ 采用版本' : '', modelName, when, range, stateLabels[run.state] || run.state].filter(Boolean).join(' · ');
   }
   function renderRuns() {
     $('run-select').replaceChildren();
     (current.runs || []).forEach((run, index) => { const option = text('option', runLabel(run, index, current.runs.length)); option.value = run.id || run.run_id; $('run-select').append(option); });
     if (!runId()) { const option = text('option', current.runs?.length ? '选择转写版本' : '尚未转写'); option.value = ''; $('run-select').prepend(option); }
     $('run-select').value = runId() || ''; $('run-select').disabled = !current.runs?.length;
+    const preferred = $('preferred-run');
+    if (preferred) { preferred.textContent = runId() && runId() === current.preferred_run_id ? '✓ 当前采用' : '设为采用版本'; preferred.disabled = !runId() || current.run?.state !== 'completed' || !current.result_available || runId() === current.preferred_run_id; }
+
   }
   function recordDate(record) {
     const date = String(record.metadata?.date || '');
@@ -645,6 +649,7 @@
     $('new-task').disabled = current.source_exists === false;
     $('new-task').title = current.source_exists === false ? '原始媒体已不在原路径，无法创建新转写。' : '创建转写任务';
     renderReview();
+    renderSessionDocuments();
     $('legacy-notes').replaceChildren();
     (current.notes || []).forEach(note => $('legacy-notes').append(text('p', [note.at, note.body].filter(Boolean).join('\n'), 'legacy-note')));
     $('legacy-notes-section').hidden = !current.notes?.length;
@@ -654,7 +659,7 @@
     const review = current?.review || {};
     $('review-body').textContent = [...(review.warnings || []), review.exists ? review.body || '这份复盘文档为空。' : '还没有复盘文档。点击“交给 Codex 复盘”，完成后回到这里刷新。'].join('\n\n');
     $('review-path').textContent = review.path || '';
-    $('review-status').textContent = review.exists ? review.status || '已有复盘' : '待复盘';
+    $('review-status').textContent = review.exists ? review.metadata?.status || review.status || '已有复盘' : '待复盘';
     $('review-indicator').hidden = !review.exists;
   }
   async function refreshReview() {
@@ -991,6 +996,9 @@
     $('output-settings').open = true;
     refreshStorageLocations();
     $('source-status').textContent = !settings.source ? '尚未选择。请选择已有的面试文件夹。' : settings.source_exists === false ? '目录尚不存在，请选择已有的面试文件夹。' : '';
+    if (settings.managed) $('source-status').textContent = '已关联本资料库。整理或搬迁请先备份，详情见资料库整理说明。';
+    ['source-path','output-path','default-output','output-layout'].forEach(id => { if (settings.managed) $(id).disabled = true; else if (id !== 'output-path') $(id).disabled = false; });
+    document.querySelectorAll('[data-pick-dir]').forEach(button => button.disabled = !!settings.managed);
     $('output-status').textContent = settings.output_exists === false ? '保存路径时会按服务规则检查或创建目录。' : '';
     formError('settings-error', null);
   }
@@ -1038,7 +1046,7 @@
     openDialog('directory-dialog'); browseDirectory($(target).value.trim(), true);
   }
   function openFolderSetup() {
-    openDialog('settings-dialog'); pickDirectory('source-path');
+    openDialog('settings-dialog'); if (!boot?.settings?.managed) pickDirectory('source-path');
   }
   document.querySelectorAll('[data-pick-dir]').forEach(button => {
     button.textContent = '选择文件夹';
@@ -1219,6 +1227,119 @@
     catch (error) { formError('metadata-error', error); }
     finally { $('metadata-submit').disabled = false; }
   });
+  function renderMarkdown(container, body) {
+    container.replaceChildren();
+    let table = null, list = null, code = null;
+    const inline = (el, value) => {
+      const parts = value.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+      for (const part of parts) {
+        if (part.startsWith('**') && part.endsWith('**')) el.append(text('strong', part.slice(2,-2)));
+        else if (part.startsWith('`') && part.endsWith('`')) el.append(text('code',part.slice(1,-1)));
+        else el.append(document.createTextNode(part));
+      }
+      return el;
+    };
+    for (const line of String(body || '').split('\n')) {
+      if (line.startsWith('```')) { if (code) code = null; else { code = text('pre',''); container.append(code); } continue; }
+      if (code) { code.textContent += line + '\n'; continue; }
+      if (!line.trim()) { list = null; table = null; continue; }
+      if (line.trim().startsWith('|')) {
+        const cells = line.trim().split('|').slice(1,-1).map(x => x.trim());
+        if (cells.every(x => /^[-: ]+$/.test(x))) continue;
+        const first = !table;
+        if (!table) { const wrapper = text('div','','markdown-table'); table = text('table',''); wrapper.append(table); container.append(wrapper); }
+        const row = text('tr',''); cells.forEach(cell => row.append(inline(text(first ? 'th' : 'td',''),cell))); table.append(row); continue;
+      }
+      table = null;
+      const heading = line.match(/^(#{1,4})\s+(.+)/), bullet = line.match(/^\s*(?:[-*]|\d+\.)\s+(.+)/);
+      if (heading) { list = null; container.append(inline(text('h'+Math.min(4,heading[1].length+1),''),heading[2])); }
+      else if (bullet) { if (!list) { list = text('ul',''); container.append(list); } list.append(inline(text('li',''),bullet[1])); }
+      else { list = null; container.append(inline(text(line.startsWith('>') ? 'blockquote' : 'p',''), line.replace(/^>\s?/,''))); }
+    }
+  }
+  let overviewData = null, overviewGeneration = 0, materialGeneration = 0;
+  async function openMaterial(document, interviewId) {
+    const generation = ++materialGeneration;
+    openDialog('material-dialog'); $('material-title').textContent = document.title;
+    $('material-body').textContent = '正在读取…'; $('material-path').textContent = '';
+    try {
+      const suffix = interviewId ? '&interview=' + encodeURIComponent(interviewId) : '';
+      const value = await api('/api/material?id=' + encodeURIComponent(document.id) + suffix);
+      if (generation !== materialGeneration || !$('material-dialog').open) return;
+      renderMarkdown($('material-body'), value.body); $('material-path').textContent = value.path;
+    } catch (error) { if (generation === materialGeneration) $('material-body').textContent = error.message; }
+  }
+  function renderSessionDocuments() {
+    const container = $('session-documents'); if (!container) return;
+    container.replaceChildren();
+    (current.documents || []).forEach(doc => container.append(actionButton(doc.title, () => openMaterial(doc, currentId()))));
+    container.hidden = !current.documents?.length;
+  }
+  function overviewCard(item) {
+    const card = text('article', '', 'interview-card');
+    const meta = item.metadata || {};
+    card.append(text('span', [meta.company, meta.date].filter(Boolean).join(' · '), 'small-label'));
+    card.append(text('h3', meta.round || item.title));
+    card.append(text('p', [item.preferred_run_id ? '已有采用版本' : item.latest_run ? '已有转写' : '可直接回听', item.review_status].join(' · '), 'helper'));
+    const pending = (item.actions || []).filter(action => action['状态'] !== '已验证');
+    if (pending.length) card.append(text('p', `${pending.length} 项待回听 / 练习`, 'card-next'));
+    const actions = text('div', '', 'card-actions');
+    actions.append(actionButton('打开面试', () => selectRecord(item.id), 'secondary'));
+    (item.documents || []).forEach(doc => actions.append(actionButton(doc.title, () => openMaterial(doc, item.id))));
+    card.append(actions); return card;
+  }
+  async function refreshOverview() {
+    const generation = ++overviewGeneration;
+    $('overview-refresh').disabled = true;
+    try {
+      const value = await api('/api/overview');
+      if (generation !== overviewGeneration) return;
+      overviewData = value;
+      const items = value.items || [], summary = $('overview-summary'); summary.replaceChildren();
+      for (const [label, count] of [['场面试',items.length],['已有转写',items.filter(x => x.latest_run).length],['复盘文档',items.filter(x => !['待复盘','待核对'].includes(x.review_status)).length],['待回听 / 练习',items.reduce((n,x) => n + (x.actions || []).filter(a => a['状态'] !== '已验证').length,0)]]) {
+        const stat = text('div', '', 'overview-stat'); stat.append(text('strong', String(count)),text('span',label)); summary.append(stat);
+      }
+      const resume = $('overview-resume'); resume.replaceChildren();
+      const nav = value.navigation || {}, previous = items.find(x => x.id === nav.interview_id);
+      if (previous) {
+        const block = text('div','','resume-card'); block.append(text('div', `继续上次回听 · ${previous.metadata?.company || ''} ${previous.metadata?.round || ''} · ${time(nav.position)}`));
+        block.append(actionButton('从这里继续', async () => { positions.set(previous.id, nav.position || 0); await selectRecord(previous.id, nav.run_id); }, 'primary')); resume.append(block);
+      }
+      const list = $('overview-interviews'); list.replaceChildren();
+      const ordered = [...items].sort((a,b) => Number(!!b.documents?.some(d => /准备|备考/.test(d.title))) - Number(!!a.documents?.some(d => /准备|备考/.test(d.title))) || recordDate(b).localeCompare(recordDate(a)));
+      ordered.forEach(item => list.append(overviewCard(item)));
+      if (!items.length) list.append(text('p','先选择面试文件夹并扫描，已有媒体可直接回听。','helper'));
+      const docs = $('overview-documents'); docs.replaceChildren();
+      (value.documents || []).forEach(doc => docs.append(actionButton(doc.title, () => openMaterial(doc), 'material-link')));
+      if (!value.documents?.length) docs.append(text('p','还没有跨场报告。单场资料可从对应面试卡片打开。','helper'));
+      $('overview-memory').textContent = value.memory?.initialized ? 'Memory 已关联当前资料库。结论按确认状态保留。' : (value.memory?.warnings || ['Memory 尚未初始化']).join(' ');
+    } catch (error) { reportError(error); }
+    finally { if (generation === overviewGeneration) $('overview-refresh').disabled = false; }
+  }
+  $('overview-refresh').addEventListener('click', refreshOverview);
+  $('preferred-run').addEventListener('click', async () => {
+    if (!current || !runId()) return;
+    const id = currentId(), selectedRun = runId(); $('preferred-run').disabled = true;
+    try {
+      const result = await api(`/api/interviews/${encodeURIComponent(id)}/preferred-run`, {method:'POST',body:{run_id:selectedRun}});
+      if (currentId() === id) { current.preferred_run_id = result.preferred_run_id; renderRuns(); }
+      toast('已保存采用版本；下次打开默认使用它。');
+    } catch (error) { reportError(error); renderRuns(); }
+  });
+  let navigationSaving = false, lastNavigation = '', navigationTick = 0;
+  async function savePlaybackPosition() {
+    if (!currentId() || navigationSaving || pendingSeek !== null) return;
+    const value = {interview_id:currentId(),run_id:runId(),position:sourceTime()};
+    const signature = JSON.stringify({...value,position:Math.floor(value.position)});
+    if (signature === lastNavigation) return;
+    navigationSaving = true;
+    try { await api('/api/navigation',{method:'POST',body:value}); lastNavigation = signature; }
+    catch (_) { /* Resume is best effort; notes use their independent durable save path. */ }
+    finally { navigationSaving = false; }
+  }
+  audio.addEventListener('pause', savePlaybackPosition);
+  audio.addEventListener('timeupdate', () => { if (Date.now() - navigationTick > 5000) { navigationTick = Date.now(); savePlaybackPosition(); } });
+
   async function initialize() {
     if (initializing) return;
     initializing = true;
@@ -1230,7 +1351,7 @@
       // editor, unsaved revision, selected run, and media element stay intact.
       if (!current) showWelcome();
       await refreshQueue();
-      if (!current && records.length) await selectRecord(records[0].id);
+      if (!current && records.length) { showView('overview'); await refreshOverview(); }
     } catch (error) {
       $('connection-state').textContent = '尚未连接'; $('welcome-title').textContent = '工作空间暂时无法打开'; $('welcome-copy').textContent = error.message; $('welcome-actions').hidden = true; reportError(error);
     } finally { initializing = false; $('global-retry').disabled = false; }

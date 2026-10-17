@@ -313,6 +313,22 @@ class WebServiceTests(unittest.TestCase):
                       (run_id, self.key, item["sha256"], core.MODEL, "{}", core.now(), core.now(), str(output)))
         return run_id, output
 
+    def test_preferred_version_and_resume_routes_validate_and_persist(self):
+        first, _ = self.completed_run(run_id='first')
+        second, _ = self.completed_run(run_id='second')
+        route = f'/api/interviews/{self.key}/preferred-run'
+        self.assertEqual(self.request('POST', route, {'run_id': first})[0], 200)
+        details = self.request('GET', f'/api/interviews/{self.key}')[2]
+        self.assertEqual(details['run']['id'], first)
+        self.assertEqual(details['preferred_run_id'], first)
+        self.assertEqual(self.request('POST', route, {'run_id': 'other-interview-run'})[0], 400)
+        self.assertEqual(self.request('POST', '/api/navigation', {'interview_id': self.key, 'run_id': second, 'position': 1.2})[0], 200)
+        snapshot = self.request('GET', '/api/overview')[2]
+        self.assertEqual(snapshot['navigation']['position'], 1.2)
+        self.assertEqual(self.request('POST', '/api/navigation', {'interview_id': self.key, 'position': -5})[0], 400)
+        self.assertEqual(self.request('GET', '/api/material?id=../../outside')[0], 400)
+        self.assertEqual(self.request('GET', '/api/overview', authenticated=False)[0], 401)
+
     def test_bootstrap_cookie_and_private_api_access(self):
         headers, body = self.request("GET", "/api/bootstrap", authenticated=False)[1:]
         self.assertIn("HttpOnly", headers["Set-Cookie"])
