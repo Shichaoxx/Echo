@@ -46,7 +46,7 @@
   const draft = () => drafts.get(currentId());
   const offset = () => Math.max(0, Number(current?.media_offset) || 0);
   const sourceTime = () => offset() + (audio.currentTime || 0);
-  const stateLabels = {queued:'等待中',running:'正在处理',succeeded:'已完成',completed:'已完成',done:'已完成',failed:'失败',cancelled:'已取消',canceled:'已取消',pending:'待转写',ready:'可回听',imported:'待转写'};
+  const stateLabels = {queued:'等待中',running:'正在处理',succeeded:'已完成',completed:'已转写',done:'已完成',failed:'失败',cancelled:'已取消',canceled:'已取消',pending:'待转写',ready:'可回听',imported:'待转写'};
   const completed = state => ['succeeded', 'completed', 'done'].includes(state);
   const time = seconds => { const n = Math.max(0, Math.floor(Number(seconds) || 0)); return n >= 3600 ? `${Math.floor(n / 3600)}:${String(Math.floor(n / 60) % 60).padStart(2,'0')}:${String(n % 60).padStart(2,'0')}` : `${String(Math.floor(n / 60)).padStart(2,'0')}:${String(n % 60).padStart(2,'0')}`; };
   const text = (tag, value, className) => { const el = document.createElement(tag); el.textContent = value; if (className) el.className = className; return el; };
