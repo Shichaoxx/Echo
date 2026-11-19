@@ -35,6 +35,23 @@ brew install ffmpeg
 
 已有环境可用 `ECHO_PYTHON=/path/to/venv/bin/python ./start.command`。端口占用可用 `ECHO_PORT=0 ./start.command`，以实际输出地址为准。关闭网页不会停止已经提交的转写任务。
 
+### 在 Mac 上作为常用网页打开
+
+完成环境安装后，可以用当前用户的登录服务运行工作台。先结束前台的 `start.command`，在仓库目录执行一次：
+
+```sh
+.venv/bin/python scripts/install_login_service.py
+```
+
+打开并收藏 [Echo 本地工作台](http://127.0.0.1:18770/)。登录 Mac 后服务会自动启动，关闭浏览器后仍可继续转写。安装脚本使用本仓库的 Python 环境和默认运行目录 `.local/`。已有托管资料库请先按[资料库说明](docs/library-storage.md)将 `.local` 指向原有的 `.state`。启动错误可查看 `~/Library/Logs/Echo-workbench.log`。
+
+要停用服务，执行以下命令。搬动仓库前也应先停用，搬动后在新位置重新安装环境并注册服务。
+
+```sh
+launchctl bootout "gui/$(id -u)/io.github.shichaoxx.echo.workbench"
+mv ~/Library/LaunchAgents/io.github.shichaoxx.echo.workbench.plist ~/Library/Logs/io.github.shichaoxx.echo.workbench.plist.disabled
+```
+
 ## 总览与可搬迁资料库
 
 新增“总览与备考”：查看面试状态、打开下一轮准备和跨场材料，并继续上次回听。场次可显式设置采用版本；新转写不会自动替代它，复盘与浏览版本不一致时提示核对。

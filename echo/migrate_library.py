@@ -33,8 +33,17 @@ def plan(source, legacy_data=None):
             old = [dict(row) for row in c.execute('SELECT * FROM interviews')]
     if any(p.is_symlink() for p in output.rglob('*')):
         raise ValueError('结果目录含符号链接，请先核对真实归属')
-    originals = [p for p in source.rglob('*') if p.is_file() and not p.is_symlink()
-                 and p.suffix.lower() in core.MEDIA and not p.is_relative_to(output)]
+    originals = []
+    excluded = {output, source / 'echos', paths.ROOT}
+    if legacy_data:
+        excluded.add(Path(legacy_data).resolve())
+    for directory, folders, files in os.walk(source):
+        parent = Path(directory)
+        folders[:] = [name for name in folders if parent / name not in excluded]
+        for name in files:
+            media = parent / name
+            if media.suffix.lower() in core.MEDIA and not media.is_symlink() and media.is_file():
+                originals.append(media)
     by_hash = defaultdict(list)
     for media in originals:
         by_hash[core.digest(media)].append(media)
