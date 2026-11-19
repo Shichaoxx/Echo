@@ -472,6 +472,16 @@ class WebServiceTests(unittest.TestCase):
             self.assertEqual(queue.jobs(), [])
             dispatcher.assert_not_called()
 
+    def test_legacy_nonfinite_confidence_can_be_displayed(self):
+        run, output = self.completed_run()
+        file = output / "transcript.json"
+        payload = json.loads(file.read_text())
+        payload["result"]["segments"][0]["avg_logprob"] = float("nan")
+        file.write_text(json.dumps(payload))
+        status, _, detail = self.request("GET", f"/api/interviews/{self.key}?run={run}")
+        self.assertEqual(status, 200)
+        self.assertIsNone(detail["segments"][0]["avg_logprob"])
+
     def test_malformed_result_returns_json_error_without_losing_connection(self):
         run, output = self.completed_run()
         for malformed in ([], {"result": {"segments": ["invalid"]}},

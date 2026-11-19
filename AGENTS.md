@@ -1,6 +1,6 @@
 # Echo 开发约定
 
-Echo 0.0 是面向用户自选资料库的本地面试工作台，维护文件夹选择、回放、转写队列、笔记、Codex 复盘与文件式 Memory。源码版本为 `0.0.0`。唯一 Web 入口是 `./start.command`（`workbench.py`），以服务输出的本机 URL 和健康检查为准。
+Echo 0.0 是面向用户自选资料库的本地面试工作台，维护文件夹选择、回放、转写队列、笔记、Codex 复盘与文件式 Memory。源码版本为 `0.0.0`。Web 服务入口为 `workbench.py`，支持 `./start.command` 前台运行或 macOS 用户登录服务。程序内置于资料目录时使用 `tools/Echo/`，复盘输出使用 `echo/`。
 
 开发前阅读 [开发约定](docs/development.md)。测试运行 `.venv/bin/python -m unittest -q` 和 `node --test tests/*.test.cjs`；使用合成资料，不将个人录屏、转写、笔记、路径或运行数据提交到 Git。保留既有台账和历史结果。
 

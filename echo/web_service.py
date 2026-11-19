@@ -224,7 +224,8 @@ class WebService:
         file = Path(run["output_dir"], "transcript.json")
         if file.stat().st_size > 100_000_000:
             raise APIError(422, "转写结果过大，请检查结果文件")
-        value = json.loads(file.read_text(encoding="utf-8"))
+        # Historical ASR results can contain NaN for an unknown confidence score.
+        value = json.loads(file.read_text(encoding="utf-8"), parse_constant=lambda _: None)
         if not isinstance(value, dict):
             raise APIError(422, "转写结果格式不正确")
         result = value.get("result", {})

@@ -75,6 +75,17 @@ class PathTests(unittest.TestCase):
         with patch.object(core, 'DATA', self.data):
             self.assertEqual(core.scan(settle_seconds=0)['added'], 1)
 
+    def test_nested_checkout_is_excluded_from_scan_and_migration(self):
+        from echo.migrate_library import plan
+        checkout = self.source / "tools/Echo"
+        checkout.mkdir(parents=True)
+        (checkout / "sample.wav").write_bytes(b"fixture")
+        (self.source / "recording.wav").write_bytes(b"interview")
+        paths.save_directories(self.data, self.source, self.source / "echo", default_output=True)
+        with patch.object(paths, "ROOT", checkout), patch.object(core, "DATA", self.data):
+            self.assertEqual(core.scan(settle_seconds=0)["added"], 1)
+            self.assertEqual(len(plan(self.source, self.data)["sessions"]), 1)
+
     def test_scan_excludes_ledger_audio_inside_selected_folder(self):
         data = self.source / ".local"
         paths.save_directories(data, self.source, self.source / "echo", default_output=True)

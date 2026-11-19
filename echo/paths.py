@@ -76,6 +76,8 @@ def source_exclusions(data, source):
     """Generated media and the local ledger are not interview source material."""
     source = Path(source).expanduser().resolve()
     roots = [output_directory(data).resolve(), source / "echo", source / "echos"]
+    if source in ROOT.parents:
+        roots.append(ROOT)
     if Path(data).resolve() != source:
         roots.append(Path(data).resolve())
     return tuple(root for root in roots if root.is_relative_to(source))
