@@ -70,6 +70,8 @@ echo-minutes-handoff.txt
 echo-minutes-draft.json
 echo-minutes.json
 Echo-智能纪要-v*.md
+*-纪要.md
+*-草稿.md
 
 # Managed library state and manifests
 .state/
@@ -77,3 +79,13 @@ interview.json
 navigation.json
 migration.json
 .echo-backup-*/
+
+# Local tooling and generated browser reports
+node_modules/
+test-results/
+playwright-report/
+*.tsbuildinfo
+
+# Fictional recordings and machine transcripts distributed with the examples.
+!examples/night-bus/audio.mp3
+!examples/reading-room/audio.mp3

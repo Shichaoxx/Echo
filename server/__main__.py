@@ -1,0 +1,43 @@
+"""Start a local Echo workspace and serve the built standalone reader."""
+
+import argparse
+import json
+import os
+from pathlib import Path
+
+from . import asr
+from .http import Server
+from .seed import seed
+from .store import Store
+
+
+def main():
+    root = Path(__file__).resolve().parents[1]
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--data-dir", type=Path, required=True)
+    parser.add_argument("--port", type=int, default=18771)
+    parser.add_argument("--ui-dir", type=Path, default=root / "frontend/dist")
+    parser.add_argument("--model-dir", type=Path, default=os.environ.get("ECHO_WHISPER_MODEL"))
+    parser.add_argument(
+        "--seed-examples",
+        action="store_true",
+        help="Import the bundled fictional examples into this workspace.",
+    )
+    args = parser.parse_args()
+    store = Store(args.data_dir)
+    if args.seed_examples:
+        seed(store, root / "examples")
+    with store.db() as db:
+        pending = db.execute("SELECT 1 FROM jobs WHERE state IN ('queued','running') LIMIT 1").fetchone()
+    with Server(store, args.port, args.ui_dir, args.model_dir) as server:
+        if pending:
+            asr.launch(store, args.model_dir)
+        print(json.dumps({"url": f"http://127.0.0.1:{server.server_port}/"}), flush=True)
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            pass
+
+
+if __name__ == "__main__":
+    main()

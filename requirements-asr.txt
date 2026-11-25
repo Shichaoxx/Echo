@@ -1,0 +1,2 @@
+# Optional for on-device inference. Reading, editing and sample playback use the standard library.
+mlx-whisper==0.4.3 ; sys_platform == "darwin" and platform_machine == "arm64"
