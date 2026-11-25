@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { Block, Edit, Minutes, ReaderProps, Ref } from './types';
 import './reader.css';
 
@@ -175,6 +175,18 @@ export default function Reader({
   const regions = (Object.keys(labels) as Section[]).filter(
     (key) => key === 'related' || doc.blocks.some((b) => b.type === key),
   );
+  const chapters = useMemo(() => doc.blocks.filter((b) => b.type === 'chapter').sort(byTime), [doc]);
+  // The timeline and headings share the same intervals while the player updates its position.
+  const cues = useMemo(() => {
+    const intervals = new Map<string, Cue>();
+    for (const block of doc.blocks) {
+      if (block.type === 'chapter' || block.type === 'followup') {
+        intervals.set(block.id, discussionCue(block, doc, recording.duration));
+      }
+    }
+    return intervals;
+  }, [doc, recording.duration]);
+  const showChapterMap = !draft && chapters.length > 0 && doc.verified && doc.scope.end > doc.scope.start;
   const table = new Map(doc.blocks.map((b) => [b.id, b]));
   const snapshots = [
     ...new Map(doc.blocks.flatMap((b) => b.evidence.map((r) => [r.index, r] as const))).values(),
@@ -313,7 +325,8 @@ export default function Reader({
   function updateActive() {
     const container = scroll.current;
     if (!container) return;
-    const top = container.getBoundingClientRect().top + 72;
+    const top =
+      container.getBoundingClientRect().top + parseFloat(getComputedStyle(container).scrollPaddingTop) + 20;
     let next = regions[0];
     for (const section of regions) {
       const el = window.document.getElementById('ed-' + section);
@@ -389,9 +402,9 @@ export default function Reader({
       </button>
     );
   }
-  function toc() {
+  function toc(floating = false) {
     return (
-      <nav className="ed-toc" aria-label="文档目录">
+      <nav className={floating ? 'ed-toc echo-glass' : 'ed-toc'} aria-label="文档目录">
         {regions.map((id) => (
           <button key={id} aria-current={active === id ? 'location' : undefined} onClick={() => jump(id)}>
             {labels[id]}
@@ -465,9 +478,7 @@ export default function Reader({
         ) : (
           <>
             {(timed || block.title !== labels[block.type as Section]) && (
-              <Heading>
-                {timed ? stamp(discussionCue(block, doc, recording.duration), block.title) : block.title}
-              </Heading>
+              <Heading>{timed ? stamp(cues.get(block.id)!, block.title) : block.title}</Heading>
             )}
             {block.type === 'quote' ? (
               <>
@@ -522,6 +533,59 @@ export default function Reader({
           ))}
         </div>
       </section>
+    );
+  }
+  function chapterMap() {
+    const span = doc.scope.end - doc.scope.start;
+    return (
+      <aside className="ed-map" aria-label="录音章节索引">
+        <div className="ed-map-caption">
+          <strong>{doc.scope.kind === 'full' ? '录音章节' : '转写章节'}</strong>
+          <span>{chapters.length} 章</span>
+        </div>
+        <div className={doc.scope.kind === 'full' ? 'ed-map-duration' : 'ed-map-duration ed-map-range'}>
+          {doc.scope.kind === 'full'
+            ? formatTime(span)
+            : formatTime(doc.scope.start) + ' – ' + formatTime(doc.scope.end)}
+        </div>
+        <div className="ed-map-track" aria-hidden="true">
+          {chapters.map((chapter, index) => {
+            const start = firstRef(chapter).start;
+            const end = index + 1 < chapters.length ? firstRef(chapters[index + 1]).start : doc.scope.end;
+            return (
+              <i
+                key={chapter.id}
+                style={{
+                  left: ((start - doc.scope.start) / span) * 100 + '%',
+                  width: ((end - start) / span) * 100 + '%',
+                }}
+              />
+            );
+          })}
+        </div>
+        <ol>
+          {chapters.map((chapter) => {
+            const cue = cues.get(chapter.id)!;
+            const action = canPlay(cue) ? '回听章节' : '查看章节';
+            return (
+              <li key={chapter.id}>
+                <button
+                  type="button"
+                  title={action + ' · ' + chapter.title}
+                  aria-label={action + ' ' + formatTime(cue.start) + ' ' + chapter.title}
+                  onClick={() => {
+                    reveal(chapter.id);
+                    if (canPlay(cue)) play(cue);
+                  }}
+                >
+                  <time>{formatTime(cue.start)}</time>
+                  <span>{chapter.title}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </aside>
     );
   }
   function comparison() {
@@ -591,10 +655,10 @@ export default function Reader({
         }
       }}
     >
-      <header className="ed-bar">
+      <header className="ed-bar echo-glass">
         <div className="ed-breadcrumb">
           <button
-            className="ed-wordmark"
+            className="ed-wordmark echo-press"
             title="返回最近纪要"
             aria-label="返回最近纪要"
             onClick={() => navigate(onLibrary)}
@@ -605,15 +669,15 @@ export default function Reader({
             最近纪要
           </button>
           <details ref={mobile} className="ed-mobile">
-            <summary>目录</summary>
-            {toc()}
+            <summary className="echo-press">目录</summary>
+            {toc(true)}
           </details>
         </div>
         <div className="ed-bar-actions">
           {draft ? (
             <>
               <button
-                className="ed-quiet"
+                className="ed-quiet echo-press"
                 disabled={busy}
                 onClick={() => {
                   if (allowLeave()) {
@@ -624,22 +688,22 @@ export default function Reader({
               >
                 取消
               </button>
-              <button className="ed-button ed-primary" disabled={busy || !dirty} onClick={save}>
+              <button className="ed-button ed-primary echo-press" disabled={busy || !dirty} onClick={save}>
                 {busy ? '保存中…' : '保存修订'}
               </button>
             </>
           ) : (
             doc.revision === latest && (
-              <button className="ed-button" disabled={busy} onClick={edit}>
+              <button className="ed-button echo-press" disabled={busy} onClick={edit}>
                 修订正文
               </button>
             )
           )}
           <details ref={menu} className="ed-menu">
-            <summary aria-label="文档操作">
+            <summary className="echo-press" aria-label="文档操作">
               操作 <span aria-hidden="true">⌄</span>
             </summary>
-            <div className="ed-menu-panel">
+            <div className="ed-menu-panel echo-glass">
               <label>
                 历史版本
                 <select
@@ -677,17 +741,22 @@ export default function Reader({
         </aside>
         <div className="ed-scroll" ref={scroll} onScroll={updateActive}>
           <main className="ed-article">
-            <header className="ed-heading">
-              <p className="ed-doctype">智能纪要</p>
-              <h1>{recording.title}</h1>
-              <p className="ed-meta">
-                {recording.date && <span>{recording.date}</span>}
-                {recording.duration != null && <span>{formatTime(recording.duration)}</span>}
-                <span>{scopeText(doc)}</span>
-                <span>
-                  第 {doc.revision} 版 · {doc.author === 'user' ? '人工修订' : '生成稿'}
-                </span>
-              </p>
+            <header className={showChapterMap ? 'ed-heading ed-has-map' : 'ed-heading'}>
+              <div className="ed-heading-copy">
+                <p className="ed-doctype">智能纪要</p>
+                <h1>{recording.title}</h1>
+                <p className="ed-meta">
+                  {recording.date && <span>{recording.date}</span>}
+                  {(!showChapterMap || doc.scope.kind !== 'full') && recording.duration != null && (
+                    <span>{formatTime(recording.duration)}</span>
+                  )}
+                  <span>{scopeText(doc)}</span>
+                  <span>
+                    第 {doc.revision} 版 · {doc.author === 'user' ? '人工修订' : '生成稿'}
+                  </span>
+                </p>
+              </div>
+              {showChapterMap && chapterMap()}
             </header>
             {doc.warning && (
               <p className="ed-alert" role="status">
@@ -748,9 +817,9 @@ export default function Reader({
         }}
       />
       {clip && (
-        <footer className="ed-player" aria-label={clip.label || '引文回听'}>
+        <footer className="ed-player echo-glass" aria-label={clip.label || '引文回听'}>
           <button
-            className="ed-play"
+            className="ed-play echo-press"
             aria-label={playing ? '暂停回听' : mediaFailed ? '重试回听' : '继续回听'}
             disabled={!canPlay(clip)}
             onClick={() => {
@@ -778,7 +847,7 @@ export default function Reader({
               if (audio.current) audio.current.currentTime = value - doc.media_offset;
             }}
           />
-          <button className="ed-quiet" onClick={closePlayback}>
+          <button className="ed-quiet echo-press" onClick={closePlayback}>
             收起
           </button>
           {playError && (

@@ -27,7 +27,7 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
-      className="echo-dialog"
+      className="echo-dialog echo-glass"
       aria-labelledby="dialog-heading"
       onCancel={(event) => {
         event.preventDefault();
@@ -36,7 +36,13 @@ export function Dialog({
     >
       <header>
         <h2 id="dialog-heading">{title}</h2>
-        <button className="close-dialog" type="button" aria-label="关闭" disabled={busy} onClick={onClose}>
+        <button
+          className="close-dialog echo-press"
+          type="button"
+          aria-label="关闭"
+          disabled={busy}
+          onClick={onClose}
+        >
           ×
         </button>
       </header>
@@ -109,7 +115,7 @@ export function UploadDialog({
           </p>
         )}
         <footer>
-          <button className="lib-primary" disabled={busy || !media || !title.trim()}>
+          <button className="lib-primary echo-press" disabled={busy || !media || !title.trim()}>
             {busy ? '正在导入…' : '导入并继续'}
           </button>
         </footer>
@@ -190,6 +196,7 @@ export function HandoffDialog({ detail, onClose }: { detail: Detail; onClose: ()
       <p role="status">{note}</p>
       <footer>
         <button
+          className="echo-press"
           disabled={!prompt}
           type="button"
           onClick={() => {
@@ -203,7 +210,7 @@ export function HandoffDialog({ detail, onClose }: { detail: Detail; onClose: ()
         >
           下载交接文字
         </button>
-        <button className="lib-primary" disabled={!prompt} onClick={copy}>
+        <button className="lib-primary echo-press" disabled={!prompt} onClick={copy}>
           复制给 Codex
         </button>
       </footer>
@@ -268,7 +275,7 @@ export function ImportDialog({
           </p>
         )}
         <footer>
-          <button className="lib-primary" disabled={!file || busy}>
+          <button className="lib-primary echo-press" disabled={!file || busy}>
             {busy ? '正在核对…' : '确认导入'}
           </button>
         </footer>

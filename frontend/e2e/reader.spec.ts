@@ -71,8 +71,12 @@ test('chapter and follow-up headings play the discussion past its first cited se
   await player.evaluate((el: HTMLAudioElement) => {
     el.muted = true;
   });
-  await page.locator('#ed-block-data > h3').getByRole('button').click();
+  const index = page.getByRole('complementary', { name: '录音章节索引' });
+  await index.getByRole('button', { name: /回听章节.*哪一次车辆上报/ }).click();
   const chapter = page.getByRole('contentinfo', { name: '章节回听' });
+  await expect(chapter.getByRole('slider')).toHaveAttribute('min', String(firstSegment('data').start));
+  await expect(page.locator('#ed-block-data > h3')).toBeInViewport();
+  await page.locator('#ed-block-data > h3').getByRole('button').click();
   await expect(chapter.getByRole('slider')).toHaveAttribute('min', String(firstSegment('data').start));
   await expect(chapter.getByRole('slider')).toHaveAttribute('max', String(firstSegment('trial').start));
 
@@ -131,6 +135,42 @@ test('the other recording has its own document and works at phone widths', async
   }));
   expect(width.page).toBeLessThanOrEqual(width.screen + 1);
   expect(width.reader).toBeLessThanOrEqual(width.visible + 1);
+});
+
+test('reduced motion keeps the library action still and returns keyboard focus after dismissal', async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
+  await page.goto('/#/library');
+  const trigger = page.getByRole('button', { name: '导入录音', exact: true });
+  await trigger.scrollIntoViewIfNeeded();
+  await trigger.hover();
+  const rest = await trigger.boundingBox();
+  expect(rest).toBeTruthy();
+  await page.mouse.down();
+  // Sample through the press to catch both transient springs and a steady scale.
+  const displacement = await trigger.evaluate(async (button, initial) => {
+    let max = 0;
+    const start = performance.now();
+    do {
+      await new Promise(requestAnimationFrame);
+      const { x, y, width, height } = button.getBoundingClientRect();
+      max = Math.max(
+        max,
+        Math.abs(x - initial.x),
+        Math.abs(y - initial.y),
+        Math.abs(width - initial.width),
+        Math.abs(height - initial.height),
+      );
+    } while (performance.now() - start < 180);
+    return max;
+  }, rest!);
+  await page.mouse.up();
+  expect(displacement).toBeLessThan(0.5);
+  await expect(page.getByRole('dialog', { name: '导入录音' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  await expect(trigger).toBeFocused();
 });
 
 test.describe('an empty library', () => {

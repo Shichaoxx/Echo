@@ -5,6 +5,7 @@ import { Dialog, HandoffDialog, ImportDialog, UploadDialog, runLabel } from './D
 import { explain, get, recordingPath, recordingUrl, send, timecode } from './api';
 import type { Detail, Edit, ImportResult, Minutes, Recording, Revision } from './types';
 import './library.css';
+import './theme.css';
 
 type Modal = 'handoff' | 'import' | 'legacy' | 'sources' | null;
 const toLibrary = () => {
@@ -16,12 +17,13 @@ const openRecord = (id: string) => {
 
 function BrandHeader({ onUpload }: { onUpload?: () => void }) {
   return (
-    <header className="library-bar">
-      <a href="#/library" aria-label="Echo 资料库">
+    <header className="library-bar echo-glass">
+      <a className="lib-brand echo-press" href="#/library" aria-label="Echo 资料库">
         Echo
       </a>
+      <span className="library-breadcrumb">资料库</span>
       {onUpload && (
-        <button className="lib-primary" onClick={onUpload}>
+        <button className="lib-primary echo-press" onClick={onUpload}>
           导入录音
         </button>
       )}
@@ -56,11 +58,16 @@ function Library({ start }: { start: boolean }) {
     <div className="library">
       <BrandHeader onUpload={() => setUpload(true)} />
       <main className="library-main">
-        <h1>最近纪要</h1>
+        <header className="library-heading">
+          <h1>最近纪要</h1>
+          {items && items.length > 0 && <span className="library-count">共 {items.length} 场录音</span>}
+        </header>
         {error ? (
           <div role="alert">
             <p>{error}</p>
-            <button onClick={() => setAttempt((n) => n + 1)}>重新连接</button>
+            <button className="echo-press" onClick={() => setAttempt((n) => n + 1)}>
+              重新连接
+            </button>
           </div>
         ) : !items ? (
           <p role="status">正在打开资料库…</p>
@@ -68,7 +75,7 @@ function Library({ start }: { start: boolean }) {
           <div className="library-empty">
             <h2>导入第一场面试录音</h2>
             <p>已有 Echo 转写的录音，可以在导入后直接选择旧转写。</p>
-            <button className="lib-primary" onClick={() => setUpload(true)}>
+            <button className="lib-primary echo-press" onClick={() => setUpload(true)}>
               选择录音
             </button>
           </div>
@@ -76,24 +83,24 @@ function Library({ start }: { start: boolean }) {
           <ul className="library-list">
             {items.map((r) => (
               <li key={r.id}>
-                <a href={recordingUrl(r.id)}>
-                  <span className="doc-icon" aria-hidden="true">
-                    ≡
-                  </span>
-                  <span>
+                <a className="echo-press" href={recordingUrl(r.id)}>
+                  <span className="doc-icon" aria-hidden="true" />
+                  <span className="lib-entry-title">
                     <strong>{r.title}</strong>
-                    <small>
-                      {[
-                        r.date,
-                        r.duration != null ? timecode(r.duration) : '',
-                        r.latest_revision ? '第 ' + r.latest_revision + ' 版' : '待生成纪要',
-                      ]
-                        .filter(Boolean)
-                        .join('　·　')}
-                    </small>
+                    {r.date && <time dateTime={r.date}>{r.date}</time>}
+                  </span>
+                  <span className="lib-entry-stats">
+                    {r.duration != null && (
+                      <span className="lib-duration" aria-label={'录音时长 ' + timecode(r.duration)}>
+                        {timecode(r.duration)}
+                      </span>
+                    )}
+                    <span className={'lib-revision' + (r.latest_revision ? '' : ' is-pending')}>
+                      {r.latest_revision ? '第 ' + r.latest_revision + ' 版' : '待生成纪要'}
+                    </span>
                   </span>
                   <span className="row-arrow" aria-hidden="true">
-                    ↗
+                    →
                   </span>
                 </a>
               </li>
@@ -187,9 +194,11 @@ function Sources({
       )}
       {detail.job?.state === 'failed' && <p role="alert">{detail.job.error}</p>}
       <footer>
-        <button onClick={onLegacy}>导入旧转写</button>
+        <button className="echo-press" onClick={onLegacy}>
+          导入旧转写
+        </button>
         <button
-          className="lib-primary"
+          className="lib-primary echo-press"
           disabled={working}
           onClick={() => {
             setError('');
@@ -317,7 +326,9 @@ function RecordPage({ id }: { id: string }) {
           {error ? (
             <>
               <p role="alert">{error}</p>
-              <button onClick={() => refresh().catch((err) => setError(explain(err)))}>重试</button>
+              <button className="echo-press" onClick={() => refresh().catch((err) => setError(explain(err)))}>
+                重试
+              </button>
             </>
           ) : (
             <p role="status">正在读取面试记录…</p>
@@ -353,24 +364,28 @@ function RecordPage({ id }: { id: string }) {
               {[rec.date, rec.duration == null ? '' : timecode(rec.duration)].filter(Boolean).join('　·　')}
             </p>
             {detail.runs.length ? (
-              <>
+              <section className="lib-preparation">
                 <h2>从逐字稿生成纪要</h2>
                 <p>将转写交给 Codex，导回生成的文件就能开始阅读。</p>
                 <div className="lib-row">
-                  <button className="lib-primary" onClick={() => setModal('handoff')}>
+                  <button className="lib-primary echo-press" onClick={() => setModal('handoff')}>
                     交给 Codex 生成
                   </button>
-                  <button onClick={() => setModal('import')}>导入纪要</button>
-                  <button onClick={() => setModal('sources')}>查看转写</button>
+                  <button className="echo-press" onClick={() => setModal('import')}>
+                    导入纪要
+                  </button>
+                  <button className="echo-press" onClick={() => setModal('sources')}>
+                    查看转写
+                  </button>
                 </div>
-              </>
+              </section>
             ) : (
-              <>
+              <section className="lib-preparation">
                 <h2>准备这场面试的逐字稿</h2>
                 <p>可以在 Mac 上转写，也可以使用这段录音已有的 Echo 转写。</p>
                 <div className="lib-row">
                   <button
-                    className="lib-primary"
+                    className="lib-primary echo-press"
                     disabled={transcribing || starting}
                     onClick={() => {
                       setError('');
@@ -379,9 +394,11 @@ function RecordPage({ id }: { id: string }) {
                   >
                     {transcribing || starting ? '正在本机转写…' : '开始本地转写'}
                   </button>
-                  <button onClick={() => setModal('legacy')}>导入旧转写</button>
+                  <button className="echo-press" onClick={() => setModal('legacy')}>
+                    导入旧转写
+                  </button>
                 </div>
-              </>
+              </section>
             )}
             {detail.job?.state === 'failed' && (
               <p role="alert" className="library-error">

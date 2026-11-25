@@ -1,0 +1,104 @@
+:root {
+  color-scheme: light dark;
+  --echo-display:
+    'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Songti SC', 'Noto Serif CJK SC', serif;
+  --echo-sans: system-ui, -apple-system, 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+  --echo-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --echo-paper: #faf9f5;
+  --echo-surface: #fff;
+  --echo-panel: #f0eee6;
+  --echo-ink: #141413;
+  --echo-muted: #68665e;
+  --echo-rule: #dedbd2;
+  --echo-accent: #c96442;
+  --echo-link: #a2492f;
+  --echo-on-accent: #fffdf8;
+  --echo-tint: #f4e8df;
+  --echo-sage: #4d6339;
+  --echo-blue: #3b5d7b;
+  --echo-glass-color: rgb(251 250 246 / 78%);
+  --echo-glass-border: rgb(92 78 55 / 19%);
+  --echo-glass-shadow: 0 6px 23px -12px rgb(58 40 18 / 22%), inset 0 1px rgb(255 255 255 / 76%);
+  --echo-spring: cubic-bezier(0.18, 1.65, 0.32, 1);
+  font-family: var(--echo-sans);
+  background: var(--echo-paper);
+  color: var(--echo-ink);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --echo-paper: #141413;
+    --echo-surface: #242422;
+    --echo-panel: #1c1c1a;
+    --echo-ink: #faf9f5;
+    --echo-muted: #b0aea5;
+    --echo-rule: #3e3c36;
+    --echo-accent: #d97757;
+    --echo-link: #e39a80;
+    --echo-on-accent: #231a16;
+    --echo-tint: #382c26;
+    --echo-sage: #aec392;
+    --echo-blue: #9cbdd8;
+    --echo-glass-color: rgb(37 36 33 / 78%);
+    --echo-glass-border: rgb(229 216 189 / 18%);
+    --echo-glass-shadow: 0 8px 28px -12px rgb(0 0 0 / 62%), inset 0 1px rgb(255 255 255 / 7%);
+  }
+}
+
+.echo-glass {
+  background: var(--echo-surface);
+  border: 1px solid var(--echo-glass-border);
+  box-shadow: var(--echo-glass-shadow);
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .echo-glass {
+    background: var(--echo-glass-color);
+    -webkit-backdrop-filter: blur(16px) saturate(1.15);
+    backdrop-filter: blur(16px) saturate(1.15);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .echo-glass {
+    background: var(--echo-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+.echo-press {
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    scale 340ms var(--echo-spring),
+    translate 340ms var(--echo-spring),
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .echo-press:where(:hover:not(:disabled)) {
+    translate: 0 -1px;
+    scale: var(--echo-hover-scale, 1.015);
+  }
+}
+.echo-press:where(:active:not(:disabled)) {
+  translate: 0 1px;
+  scale: var(--echo-press-scale, 0.955);
+  transition-duration: 65ms;
+  transition-timing-function: ease-out;
+}
+:where(a, button, summary, input, select, textarea):focus-visible {
+  outline: 2px solid var(--echo-link);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .echo-press,
+  .echo-press:where(:hover, :active) {
+    scale: none;
+    translate: none;
+    transition: none;
+  }
+}
