@@ -4,11 +4,14 @@ import hashlib
 import http.client
 import io
 import json
+import subprocess
+import sys
 import tempfile
 import threading
 import unittest
 import wave
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from unittest.mock import patch
 
 from server import asr
@@ -22,6 +25,28 @@ def audio_bytes():
         wav.setparams((1, 2, 16000, 0, "NONE", "uncompressed"))
         wav.writeframes(bytes(64000))
     return result.getvalue()
+
+
+class DesktopLifecycle(unittest.TestCase):
+    def test_closing_launcher_pipe_stops_the_bound_server(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as folder:
+            process = subprocess.Popen(
+                [sys.executable, "-BEs", "-m", "server", "--data-dir", folder, "--port", "0",
+                 "--exit-on-stdin-eof"],
+                cwd=root, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+            )
+            try:
+                url = json.loads(process.stdout.readline())["url"]
+                self.assertTrue(url.startswith("http://127.0.0.1:"))
+                process.stdin.close()
+                self.assertEqual(process.wait(timeout=5), 0)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
+                process.stdin.close()
+                process.stdout.close()
 
 
 class Workspace(unittest.TestCase):

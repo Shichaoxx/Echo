@@ -20,17 +20,19 @@ def valid_model(directory):
     )
 
 
+def worker_command(store, model_dir):
+    # Keep native workers on the app's Python installation and leave its signed files read-only.
+    args = [sys.executable, "-B"]
+    if sys.flags.no_user_site:
+        args.append("-s")
+    if sys.flags.ignore_environment:
+        args.append("-E")
+    return args + ["-m", "server.asr", "--data-dir", str(store.root), "--model-dir", str(model_dir or "")]
+
+
 def launch(store, model_dir):
     subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "server.asr",
-            "--data-dir",
-            str(store.root),
-            "--model-dir",
-            str(model_dir or ""),
-        ],
+        worker_command(store, model_dir),
         cwd=Path(__file__).resolve().parents[1],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
@@ -143,17 +145,7 @@ def drain(store, model_dir):
             # catch them. Keep the queue supervisor alive to expose failure.
             try:
                 proc = subprocess.run(
-                    [
-                        sys.executable,
-                        "-m",
-                        "server.asr",
-                        "--data-dir",
-                        str(store.root),
-                        "--model-dir",
-                        str(model_dir),
-                        "--job",
-                        job["id"],
-                    ],
+                    [*worker_command(store, model_dir), "--job", job["id"]],
                     check=False,
                 )
                 reason = f"模型进程异常退出（{proc.returncode}），请检查可用内存、Metal 和模型文件。"
