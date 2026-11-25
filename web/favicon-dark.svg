@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 128 128" role="img" aria-label="Echo 时间残影 · 深色">
+<defs>
+<linearGradient id="tile" x1="0" y1="0" x2=".9" y2="1">
+<stop stop-color="#20232e"/>
+<stop offset=".53" stop-color="#10121b"/>
+<stop offset="1" stop-color="#08090f"/>
+</linearGradient>
+<linearGradient id="edge" x1="0" y1="0" x2=".7" y2="1">
+<stop stop-color="#454754"/>
+<stop offset="1" stop-color="#171823"/>
+</linearGradient>
+</defs>
+<rect x="7" y="9.2" width="114" height="114" rx="27" fill="#02040c" opacity=".26"/>
+<rect x="7.6" y="6.6" width="112.8" height="112.8" rx="26.4" fill="url(#tile)" stroke="url(#edge)" stroke-width="1.2"/>
+<path d="m18 48 6-1-2 19-6 1z" fill="#3842dc"/>
+<path d="m28 43 6-1-3 23-6 1z" fill="#4274ff"/>
+<path d="m38 38 56-9-5 24-22 4-17 15 2-12-19 3z" fill="#90caff"/>
+<path d="m43 75 6-1-3 14-6 1z" fill="#3345c6"/>
+<path d="m55 69 52-9-5 22-13 2-2 13-12-10-25 4z" fill="#517bff"/>
+</svg>

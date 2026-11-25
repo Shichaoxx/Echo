@@ -34,7 +34,7 @@ def plan(source, legacy_data=None):
     if any(p.is_symlink() for p in output.rglob('*')):
         raise ValueError('结果目录含符号链接，请先核对真实归属')
     originals = []
-    excluded = {output, source / 'echos', paths.ROOT}
+    excluded = {output, source / 'echos', *paths.checkout_exclusions(source)}
     if legacy_data:
         excluded.add(Path(legacy_data).resolve())
     for directory, folders, files in os.walk(source):

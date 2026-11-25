@@ -72,12 +72,19 @@ def output_directory(data):
     return Path(data).resolve() / "outputs"
 
 
+def checkout_exclusions(source):
+    roots = [ROOT] if source in ROOT.parents else []
+    nested = source / "tools/Echo"
+    if (nested / "echo/web_service.py").is_file() and (nested / "workbench.py").is_file():
+        roots.append(nested)
+    return roots
+
+
 def source_exclusions(data, source):
     """Generated media and the local ledger are not interview source material."""
     source = Path(source).expanduser().resolve()
     roots = [output_directory(data).resolve(), source / "echo", source / "echos"]
-    if source in ROOT.parents:
-        roots.append(ROOT)
+    roots.extend(checkout_exclusions(source))
     if Path(data).resolve() != source:
         roots.append(Path(data).resolve())
     return tuple(root for root in roots if root.is_relative_to(source))

@@ -27,7 +27,8 @@ MEMORY_MARKER = ".echo-memory.json"
 REVIEWED_ARTIFACTS = {
     "docs/figures/echo-architecture.pdf": "5817632fee2934fe6cbb868be8374927d562e9cb699187adfbfeaeb588a5ce53",
     "docs/figures/echo-architecture.png": "ace7fd4372e383d54d16410601d8054909fb0b97daeedbf7aaf78083a2c81e07",
-    "docs/figures/echo-icon.png": "5fe5ab81b55a747283e54940a9c283b6ad29a8092ce6ef3e49cafb744ff5fc46",
+    "docs/figures/echo-icon.png": "fa369bd1d0d4e45cd3be6c260db537b94ea97df0b8d1caa203befbf488d9b2ab",
+    "docs/figures/echo-icon-dark.png": "f82a3ff98a861608c13a910ab844e0c233a4a607d19a3b1943a623a8661fdc93",
 }
 EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 PATTERNS = [

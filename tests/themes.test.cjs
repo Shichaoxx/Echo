@@ -38,7 +38,7 @@ function harness(stored={}, systemDark=false) {
   vm.createContext(context);
   vm.runInContext(section("  const preferenceKey =",'  let notesWidth =')+
     section('  function persistAppearance()', '  function openDialog(')+
-    '\n globalThis.access={themes,normalizeTheme,resolvedTheme,applyTheme,setTheme,cycleTheme,themeCommands,getTheme:()=>theme};',context);
+    '\n globalThis.access={themes,themeOptions,normalizeTheme,resolvedTheme,applyTheme,setTheme,cycleTheme,themeCommands,getTheme:()=>theme};',context);
   context.access.applyTheme();
   return {...context.access,$,body,root,meta,writes,systemTheme};
 }
@@ -48,28 +48,36 @@ function luminance(hex) {
 }
 function contrast(a,b) {const [light,dark]=[luminance(a),luminance(b)].sort((a,b)=>b-a);return (light+.05)/(dark+.05);}
 
-test('all selectors and preview cards use one theme configuration',()=>{
+test('four palettes have preview cards and all selectors also contain the automatic mode',()=>{
   const h=harness();
-  assert.equal(h.themes.length,7);
-  assert.deepEqual(Array.from(h.$('theme-quick').children,item=>item.value),Array.from(h.themes,item=>item.id));
-  assert.deepEqual(Array.from(h.$('theme-setting').children,item=>item.value),Array.from(h.themes,item=>item.id));
-  assert.deepEqual(Array.from(h.$('theme-presets').children,item=>item.dataset.themeChoice),Array.from(h.themes,item=>item.id));
-  assert.equal(h.themes.filter(item=>item.scheme==='light').length,3);
-  assert.equal(h.themes.filter(item=>item.scheme==='dark').length,3);
+  const ids = ['light','sand','midnight','dark'];
+  assert.deepEqual(Array.from(h.themes, item=>item.id), ids);
+  assert.deepEqual(Array.from(h.themes, item=>item.label), ['白蓝','暖白','黑蓝','深空灰']);
+  assert.deepEqual(Array.from(h.$('theme-quick').children,item=>item.value), ['system', ...ids]);
+  assert.deepEqual(Array.from(h.$('theme-setting').children,item=>item.value), ['system', ...ids]);
+  assert.deepEqual(Array.from(h.$('theme-presets').children,item=>item.dataset.themeChoice), ids);
+  assert.deepEqual(Array.from(h.$('theme-presets').children,item=>item.dataset.theme), ids);
+  assert.equal(h.themes.filter(item=>item.scheme==='light').length,2);
+  assert.equal(h.themes.filter(item=>item.scheme==='dark').length,2);
 });
 
 test('choosing any theme keeps controls, preview selection, browser scheme and persistence in sync',()=>{
   const h=harness();
-  for(const item of h.themes) {
+  for(const item of h.themeOptions) {
     h.setTheme(item.id);
     const resolved=h.resolvedTheme(item.id,false);
     assert.equal(h.body.dataset.theme,resolved);
-    assert.equal(h.root.style.colorScheme,item.scheme==='system'?'light':item.scheme);
+    const scheme = item.scheme === 'system' ? 'light' : item.scheme;
+    assert.equal(h.root.style.colorScheme,scheme);
+    const icon = h.$('app-favicon').href;
+    assert.equal(icon.split('?')[0],scheme === 'dark' ? 'favicon-dark.svg' : 'favicon.svg');
+    assert.equal(h.$('workspace-logo').src,icon);
+    assert.equal(h.$('welcome-logo').src,icon);
     assert.equal(h.$('theme-setting').value,item.id);
     assert.equal(h.$('theme-quick').value,item.id);
     assert.equal(h.meta.content,palettes[resolved].surface);
     const selected=h.$('theme-presets').children.filter(button=>button.attributes['aria-pressed']==='true');
-    assert.equal(selected.length,1);assert.equal(selected[0].dataset.themeChoice,item.id);
+    assert.deepEqual(selected.map(button=>button.dataset.themeChoice),item.id==='system' ? [] : [item.id]);
     assert.equal(h.writes.at(-1).value.theme,item.id);
   }
 });
@@ -78,7 +86,8 @@ test('system preference follows OS changes without replacing an explicitly selec
   const h=harness();
   assert.equal(h.body.dataset.theme,'light');
   h.systemTheme.matches=true;h.systemTheme.change();
-  assert.equal(h.body.dataset.theme,'dark');assert.equal(h.getTheme(),'system');
+  assert.equal(h.body.dataset.theme,'midnight');assert.equal(h.getTheme(),'system');
+  assert.equal(h.$('app-favicon').href.split('?')[0],'favicon-dark.svg');
   h.setTheme('sand');h.systemTheme.matches=false;h.systemTheme.change();
   assert.equal(h.body.dataset.theme,'sand');assert.equal(h.getTheme(),'sand');
 });
@@ -87,26 +96,30 @@ test('stored preferences migrate from v2 while current preferences take priority
   const old=harness({'echo-v2-appearance':JSON.stringify({theme:'midnight'})});
   assert.equal(old.getTheme(),'midnight');assert.equal(old.body.dataset.theme,'midnight');
   const current=harness({'echo-appearance':JSON.stringify({theme:'dusk'}),'echo-v2-appearance':JSON.stringify({theme:'light'})});
-  assert.equal(current.getTheme(),'dusk');
-  assert.equal(harness({'echo-v2-appearance':JSON.stringify({theme:'cloud'})}).getTheme(),'sea');
+  assert.equal(current.getTheme(),'dark');
+  for (const [oldId,id] of Object.entries({sea:'light',cloud:'light',dusk:'dark',forest:'dark',rose:'sand'})) {
+    const migrated=harness({'echo-v2-appearance':JSON.stringify({theme:oldId})});
+    assert.equal(migrated.getTheme(),id);
+    assert.equal(migrated.body.dataset.theme,id);
+  }
   assert.equal(harness({'echo-appearance':JSON.stringify({theme:'removed'})}).getTheme(),'system');
 });
 
 test('command palette can select every palette and cycles through all choices',()=>{
   const h=harness();
-  for(const item of h.themes) {
+  for(const item of h.themeOptions) {
     h.themeCommands().find(command=>command.title==='切换主题 · '+item.label).action();
     assert.equal(h.getTheme(),item.id);
   }
   h.setTheme('system');
   const visited=[];for(let i=0;i<h.themes.length;i++){h.cycleTheme();visited.push(h.getTheme());}
-  assert.equal(new Set(visited).size,h.themes.length);assert.equal(h.getTheme(),'system');
+  assert.deepEqual(visited,['sand','midnight','dark','light']);
 });
 
 test('all palettes have complete shared tokens and readable text, state and button colors',()=>{
   const h=harness();
   const required=['surface','surface-raised','sidebar','surface-hover','surface-active','text','text-secondary','text-tertiary','line','line-strong','accent','accent-strong','accent-ink','accent-soft','accent-line','success','danger'];
-  for(const item of h.themes.filter(theme=>theme.scheme!=='system')) {
+  for(const item of h.themes) {
     const colors=palettes[item.id];assert.ok(colors,item.id);
     for(const key of required) assert.ok(colors[key],`${item.id}: ${key}`);
     for(const background of ['surface','surface-raised','sidebar','surface-hover','surface-active','accent-soft']) {

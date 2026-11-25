@@ -1,14 +1,29 @@
-<img src="web/favicon.svg" width="64" height="64" alt="Echo 小船图标">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="web/favicon-dark.svg">
+  <img src="web/favicon.svg" width="64" height="64" alt="Echo 时间残影图标">
+</picture>
 
 # 回声 · Echo 0.0
 
 **选择面试文件夹，回放录音与录屏、转写文字，再配合 Codex 复盘。**
 
-Echo 是本地 Web 工作台。资料保留在用户选择的位置，浏览器负责回放、原文核对和笔记；Codex 根据选定的转写版本完成分析，Echo 只读展示复盘文档。用户还可以为资料库初始化文件式 Memory，把确认后的背景、偏好与主题结论留给后续复盘使用。当前源码版本为 `0.0.0`。
+Echo 是本地 Web 工作台。资料保留在用户选择的位置，浏览器负责回放、原文核对和笔记；Codex 根据选定的转写版本完成分析，Echo 只读展示复盘文档。用户还可以为资料库初始化文件式 Memory，把确认后的背景、偏好与主题结论留给后续复盘使用。当前源码版本为 `0.0.1`。
 
 主流程：**选择文件夹 → 扫描 → 回放 → 转写与核对 → 交给 Codex 复盘**。未转写的记录也可以播放。
 
 **第一次使用？** 跟着 [新手 Cookbook](docs/cookbook.md) 完成一场面试的回放、试转和复盘；应用侧栏的“使用指南”也可以随时打开。
+
+## Mac 客户端
+
+macOS 15 或更新版本的 Apple Silicon 用户可从 [GitHub Release 下载 Echo](https://github.com/Shichaoxx/Echo/releases/download/v0.0.1/Echo-macOS-arm64.zip)，解压并将 `Echo.app` 放入“应用程序”，双击即可打开默认浏览器中的本机工作台。应用内置 Python、转写依赖和 FFmpeg。模型按需下载，个人录屏、模型权重与笔记独立保存。首次运行会注册当前用户的登录服务，之后也可直接访问 [本地工作台](http://127.0.0.1:18770/)。
+
+把指针移到回放波形上，可以预览该时间点的逐字稿，再点击定位到原始录音。
+
+工作台右上角可切换白蓝、暖白、黑蓝、深空灰四套配色。选择「跟随系统」后，系统浅色使用白蓝，系统深色使用黑蓝。侧栏、欢迎页和浏览器标签上的「时间残影」图标会随工作台主题切换。
+
+客户端运行数据位于 `~/Library/Application Support/Echo/`。从源码版切换时，先等队列完成并停止旧服务，将原运行目录迁入此位置，再打开客户端。原媒体与复盘目录保持原路径。应用更新时退出后台服务并替换应用即可。停用服务可运行 `launchctl bootout "gui/$(id -u)/io.github.shichaoxx.echo.desktop"`，将 `~/Library/LaunchAgents/io.github.shichaoxx.echo.desktop.plist` 移出登录项目录。
+
+开发者可在 Apple Silicon Mac 上使用Python 3.12 或更新版本、Homebrew FFmpeg 与 Xcode 命令行工具执行 `python3 scripts/build_macos.py`。构建脚本核对独立 Python 运行时的 SHA-256，并按锁定版本安装公开 wheels。安装包生成在 `dist/`。默认使用 ad-hoc 签名。通过网络下载未公证版本时，macOS 可能要求在「系统设置 → 隐私与安全性」中确认打开。若已有代码签名证书，可在构建时通过 `ECHO_CODESIGN_IDENTITY` 指定同一签名身份。
 
 ## 启动
 
@@ -143,7 +158,7 @@ Memory 首次初始化在当时的输出根目录下创建 `memory/`，只建立
 ## 能力与边界
 
 - 回放支持时间定位、倍速、A–B 循环与录屏展开；有转写后可点击原文定位、搜索与跟随播放。
-- 界面提供六种主题及跟随系统选项，支持侧栏调整、快捷搜索与使用指南。
+- 界面提供四套配色及跟随系统选项，支持侧栏调整、快捷搜索与使用指南。
 - 本地转写支持 Qwen3-ASR 和 Whisper，任务串行排队；Qwen 时间戳是音频块范围，技术名词和双方发言需人工核对。
 - 笔记和原文引用保存在本机。点击“交给 Codex 复盘”会生成当前场次、当前版本的交接内容，用户复制到 Codex 后再进行分析。
 - 文件式 Memory 保存用户确认的背景、偏好和有来源的主题结论。Codex 先读索引、再读相关主题；Echo 不自动生成画像、语义检索或演化 Skill。
@@ -159,7 +174,7 @@ Memory 首次初始化在当时的输出根目录下创建 `memory/`，只建立
 
 ## 参与开发
 
-欢迎提交问题反馈和改进建议。反馈时请说明运行环境、复现步骤和预期行为，使用虚构或脱敏材料，不上传真实面试录音、逐字稿、笔记、Memory 或本机配置。开发与验证步骤见 [开发说明](docs/development.md)。当前 `0.0.0` 是早期版本；已实现能力与限制以本文及源码为准。
+欢迎提交问题反馈和改进建议。反馈时请说明运行环境、复现步骤和预期行为，使用虚构或脱敏材料，不上传真实面试录音、逐字稿、笔记、Memory 或本机配置。开发与验证步骤见 [开发说明](docs/development.md)。当前 `0.0.1` 是早期版本；已实现能力与限制以本文及源码为准。
 
 ## 文档
 

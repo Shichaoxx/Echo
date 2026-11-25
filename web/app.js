@@ -7,22 +7,23 @@
   let prefs = {};
   try { prefs = JSON.parse(localStorage.getItem(preferenceKey) || localStorage.getItem('echo-v2-appearance') || '{}') || {}; } catch (_) { /* Appearance can remain session-only. */ }
   const themes = [
-    {id:'system', label:'跟随系统', scheme:'system', description:'随设备的浅色或深色外观切换。'},
-    {id:'light', label:'浅色', scheme:'light', description:'暖白纸面与青绿强调，适合白天阅读。'},
-    {id:'dark', label:'深色', scheme:'dark', description:'柔和墨色与青绿强调，减少夜间眩光。'},
-    {id:'sea', label:'海盐蓝', scheme:'light', description:'清透蓝灰底色，让逐字稿和笔记更清晰。'},
-    {id:'sand', label:'暖砂', scheme:'light', description:'温暖米砂纸面，搭配沉静的陶土色。'},
-    {id:'dusk', label:'暮山紫', scheme:'dark', description:'灰紫阅读底色，搭配柔和的薰衣草色。'},
-    {id:'midnight', label:'午夜蓝', scheme:'dark', description:'深海蓝底色，搭配明亮而克制的冰蓝色。'},
+    {id:'light', label:'白蓝', scheme:'light', description:'冷白底色，搭配钴蓝色按钮和选中标记。'},
+    {id:'sand', label:'暖白', scheme:'light', description:'暖白纸面，搭配低饱和的暖棕色。'},
+    {id:'midnight', label:'黑蓝', scheme:'dark', description:'蓝黑底色，搭配冰蓝色按钮和播放进度。'},
+    {id:'dark', label:'深空灰', scheme:'dark', description:'石墨灰底色，搭配银灰色按钮和选中标记。'},
+  ];
+  const themeOptions = [
+    {id:'system', label:'跟随系统', scheme:'system', description:'系统浅色时使用白蓝，深色时使用黑蓝。'},
+    ...themes,
   ];
   function normalizeTheme(value) {
-    const aliases = {cloud:'sea', rose:'sand', forest:'dark'};
+    const aliases = {sea:'light', dusk:'dark', cloud:'light', rose:'sand', forest:'dark'};
     const id = Object.hasOwn(aliases, value) ? aliases[value] : value;
-    return themes.some(item => item.id === id) ? id : 'system';
+    return themeOptions.some(item => item.id === id) ? id : 'system';
   }
   function resolvedTheme(value, systemDark) {
     const id = normalizeTheme(value);
-    return id === 'system' ? (systemDark ? 'dark' : 'light') : id;
+    return id === 'system' ? (systemDark ? 'midnight' : 'light') : id;
   }
   let theme = normalizeTheme(prefs.theme);
   let notesWidth = Math.max(260, Math.min(440, Number(prefs.notesWidth) || 320));
@@ -54,7 +55,17 @@
   function actionButton(label, action, className = 'quiet-button') { const el = text('button', label, className); el.type = 'button'; el.addEventListener('click', action); return el; }
   function toast(message) { clearTimeout(toastTimer); $('toast').textContent = message; $('toast').hidden = false; toastTimer = setTimeout(() => $('toast').hidden = true, 4200); }
   function formError(id, error) { $(id).textContent = error?.message || error || ''; $(id).hidden = !error; }
-  function reportError(error) { $('global-error-text').textContent = error?.message || String(error); $('global-error').hidden = false; }
+  let retryRecord = null;
+  function reportError(error, retry = null) {
+    retryRecord = retry;
+    $('global-error-text').textContent = error?.message || String(error);
+    $('global-retry').textContent = retry ? '重试打开' : '重试连接';
+    $('global-error').hidden = false;
+  }
+  function dismissError() {
+    retryRecord = null;
+    $('global-error').hidden = true;
+  }
   async function requestOnce(path, {method = 'GET', body, responseText = false, timeoutMs, signal, ...options} = {}) {
     const controller = new AbortController();
     const deadline = timeoutMs ?? (['/api/scan', '/api/import'].includes(path) ? 120000 : 15000);
@@ -109,33 +120,42 @@
   function persistAppearance() { try { localStorage.setItem(preferenceKey, JSON.stringify({theme, notesWidth, sidebarWidth, recordGrouping})); } catch (_) { /* No private content is stored here. */ } }
   function applyTheme() {
     const resolved = resolvedTheme(theme, systemTheme.matches);
+    const scheme = themes.find(item => item.id === resolved).scheme;
+    const iconUrl = scheme === 'dark' ? 'favicon-dark.svg?v=c2-1' : 'favicon.svg?v=c2-1';
     document.body.dataset.theme = resolved;
-    document.documentElement.style.colorScheme = themes.find(item => item.id === resolved).scheme;
+    document.documentElement.style.colorScheme = scheme;
+    $('app-favicon').href = iconUrl;
+    $('workspace-logo').src = iconUrl;
+    $('welcome-logo').src = iconUrl;
     $('theme-setting').value = theme;
     $('theme-quick').value = theme;
     document.querySelectorAll('[data-theme-choice]').forEach(button => {
       button.setAttribute('aria-pressed', String(button.dataset.themeChoice === theme));
-      button.dataset.theme = resolvedTheme(button.dataset.themeChoice, systemTheme.matches);
     });
-    $('theme-description').textContent = themes.find(item => item.id === theme).description;
+    $('theme-description').textContent = themeOptions.find(item => item.id === theme).description;
     document.querySelector('meta[name="theme-color"]').content = getComputedStyle(document.body).getPropertyValue('--surface').trim();
   }
   function setTheme(value) { theme = normalizeTheme(value); applyTheme(); persistAppearance(); }
-  function cycleTheme() { setTheme(themes[(themes.findIndex(item => item.id === theme) + 1) % themes.length].id); }
+  function cycleTheme() {
+    const current = resolvedTheme(theme, systemTheme.matches);
+    const nextIndex = (themes.findIndex(item => item.id === current) + 1) % themes.length;
+    setTheme(themes[nextIndex].id);
+  }
   function themeCommands() {
     return [
       {title:'切换到下一套主题', hint:'外观', action:cycleTheme},
-      ...themes.map(item => ({title:'切换主题 · ' + item.label, hint:item.scheme === 'system' ? '外观 · 跟随系统' : item.scheme === 'light' ? '外观 · 浅色配色' : '外观 · 深色配色', action:() => setTheme(item.id)})),
+      ...themeOptions.map(item => ({title:'切换主题 · ' + item.label, hint:item.scheme === 'system' ? '外观 · 跟随系统' : item.scheme === 'light' ? '外观 · 浅色配色' : '外观 · 深色配色', action:() => setTheme(item.id)})),
     ];
   }
   const themeQuick = document.createElement('select'); themeQuick.id = 'theme-quick'; themeQuick.setAttribute('aria-label', '主题');
   document.querySelector('.theme-picker').replaceChildren(themeQuick);
   for (const select of [themeQuick, $('theme-setting')]) {
     select.replaceChildren();
-    themes.forEach(({id,label}) => { const option = text('option',label); option.value = id; select.append(option); });
+    themeOptions.forEach(({id,label}) => { const option = text('option',label); option.value = id; select.append(option); });
   }
   themes.forEach(({id,label,description}) => {
     const button = actionButton('', () => setTheme(id), 'theme-card');
+    button.dataset.theme = id;
     button.dataset.themeChoice = id; button.setAttribute('aria-label', label + '主题'); button.title = description;
     const preview = text('span', '', 'theme-preview'); preview.setAttribute('aria-hidden', 'true');
     const pane = text('span', '', 'theme-preview-pane');
@@ -186,8 +206,8 @@
     $('workspace-switch').setAttribute('aria-label', '面试文件夹：' + $('workspace-name').textContent + '，点击选择');
   }
   $('launch-search').addEventListener('click', () => openDialog('command-dialog'));
-  $('global-dismiss').addEventListener('click', () => $('global-error').hidden = true);
-  $('global-retry').addEventListener('click', () => initialize());
+  $('global-dismiss').addEventListener('click', dismissError);
+  $('global-retry').addEventListener('click', () => (retryRecord || initialize)());
   function showView(next) {
     view = next; $('queue-view').hidden = next !== 'queue';
     if ($('overview-view')) $('overview-view').hidden = next !== 'overview';
@@ -628,8 +648,12 @@
       audio.load(); $('find-input').value = ''; $('find-bar').hidden = true;
       renderCurrent(); setFollow(true); if (!preserveView) showView('record'); else showView(view);
       loadWaveform();
+      if (retryRecord) dismissError();
       return true;
-    } catch (error) { reportError(error); return false; }
+    } catch (error) {
+      reportError(error, () => selectRecord(id, requestedRun, {preserveView}));
+      return false;
+    }
     finally { navigating = false; $('run-select').disabled = !(current?.runs?.length); if (current) $('run-select').value = runId() || ''; }
   }
   function renderCurrent() {
@@ -864,6 +888,7 @@
   $('video-close').addEventListener('click', () => { videoOpen = false; $('video-stage').hidden = true; $('video-toggle').setAttribute('aria-pressed', 'false'); $('video-toggle').textContent = '展开录屏'; });
   async function loadWaveform() {
     waveformController?.abort(); const controller = new AbortController(); waveformController = controller; const generation = ++waveformGeneration;
+    $('wave-hover').hidden = true;
     $('wave-background').removeAttribute('d'); $('wave-played').removeAttribute('d'); $('wave-retry').hidden = true;
     if (!current?.media_url) { $('wave-status').textContent = '没有可播放的媒体'; return; }
     $('wave-status').textContent = '正在读取真实音频波形…';
@@ -878,14 +903,23 @@
       const lower = peaks.map((peak,index) => `${index * step},${24 + peak / maximum * 21}`).reverse();
       const shape = `M0,24 L${upper.join(' L')} L512,24 L${lower.join(' L')} Z`;
       $('wave-background').setAttribute('d', shape); $('wave-played').setAttribute('d', shape);
-      $('wave-status').textContent = maximum > .001 ? '点击波形定位 · 拖动精听' : '音轨接近静音'; updateTime();
+      $('wave-status').textContent = maximum > .001 ? (segments().length ? '悬停预览逐字稿 · 点击定位' : '点击波形定位 · 拖动精听') : '音轨接近静音'; updateTime();
     } catch (error) { if (generation === waveformGeneration && !controller.signal.aborted) { $('wave-status').textContent = error.message; $('wave-retry').hidden = false; } }
   }
   $('wave-retry').addEventListener('click', loadWaveform);
+  function wavePreviewAt(position) {
+    const segment = segments().find(item => position >= Number(item.start) && position < Number(item.end));
+    return {timestamp: time(position), excerpt: segment?.text?.trim() || ''};
+  }
   $('wave-track').addEventListener('pointermove', event => {
     const rect = $('wave-track').getBoundingClientRect(), ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-    $('wave-hover').textContent = time(offset() + ratio * Math.max(0, mediaEnd() - offset()));
-    $('wave-hover').style.left = Math.max(26, Math.min(rect.width - 26, ratio * rect.width)) + 'px'; $('wave-hover').hidden = false;
+    const preview = wavePreviewAt(offset() + ratio * Math.max(0, mediaEnd() - offset()));
+    const tooltip = $('wave-hover');
+    $('wave-hover-time').textContent = preview.timestamp;
+    $('wave-hover-excerpt').textContent = preview.excerpt;
+    tooltip.hidden = false;
+    const half = tooltip.offsetWidth / 2;
+    tooltip.style.left = Math.max(half, Math.min(rect.width - half, ratio * rect.width)) + 'px';
   });
   $('wave-track').addEventListener('pointerleave', () => $('wave-hover').hidden = true);
   function openFind() { if (!segments().length) return; showView('record'); $('find-bar').hidden = false; $('find-input').focus(); refreshMatches(); }
@@ -1346,7 +1380,7 @@
     $('global-retry').disabled = true;
     try {
       await renewSession(); $('app-version').textContent = 'ECHO / ' + boot.version; $('connection-state').textContent = '本机工作空间';
-      await refreshLibrary(); $('global-error').hidden = true; queueFailures = 0;
+      await refreshLibrary(); if (!retryRecord) dismissError(); queueFailures = 0;
       // Reconnecting updates the session and navigation only. The open record,
       // editor, unsaved revision, selected run, and media element stay intact.
       if (!current) showWelcome();

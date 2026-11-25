@@ -1,4 +1,5 @@
 """Real loopback HTTP checks against temporary, synthetic-only workspaces."""
+import errno
 import http.client
 import json
 import os
@@ -7,6 +8,7 @@ import select
 import signal
 import shutil
 import socket
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -481,6 +483,21 @@ class WebServiceTests(unittest.TestCase):
         status, _, detail = self.request("GET", f"/api/interviews/{self.key}?run={run}")
         self.assertEqual(status, 200)
         self.assertIsNone(detail["segments"][0]["avg_logprob"])
+
+    def test_record_access_reports_the_specific_local_failure(self):
+        route = f"/api/interviews/{self.key}"
+        denied = PermissionError(errno.EPERM, "denied", str(Path.home() / "Desktop" / "example.wav"))
+        cases = [(denied, 422, "file_permission_denied", "桌面文件夹访问权限"),
+                 (sqlite3.OperationalError("unable to open database"), 500, "ledger_error", "台账"),
+                 (OSError(errno.ENOSPC, "full"), 507, "storage_full", "空间"),
+                 (OSError(errno.EIO, "read failed"), 500, "file_io_error", "EIO")]
+        for error, status, code, hint in cases:
+            with self.subTest(code=code), patch("echo.web_service.sys.platform", "darwin"), patch.object(
+                    self.service, "details", side_effect=error):
+                response = self.request("GET", route)
+                self.assertEqual(response[0], status)
+                self.assertEqual(response[2]["code"], code)
+                self.assertIn(hint, response[2]["error"])
 
     def test_malformed_result_returns_json_error_without_losing_connection(self):
         run, output = self.completed_run()

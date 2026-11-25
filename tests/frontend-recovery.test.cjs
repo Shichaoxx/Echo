@@ -203,3 +203,42 @@ test('scan and import have a 120 second request deadline', async () => {
     await failedWrite;
   }
 });
+
+test('record retry opens the same version, respects unsaved notes and clears only record errors', async () => {
+  const nodes = new Map(), calls = [];
+  const $ = id => {
+    if (!nodes.has(id)) nodes.set(id, {addEventListener(type, fn) { this[type] = fn; }, setAttribute() {}});
+    return nodes.get(id);
+  };
+  let canLeave = true, available = false;
+  const context = {$, navigating:false, current:null, drafts:new Map(), positions:new Map(), view:'overview',
+    currentId:()=>null, flushDraft:async()=>canLeave, runId:()=>null, offset:()=>0, newDraft:()=>({}),
+    audio:{pause(){},removeAttribute(){},load(){}}, clearClip(){}, renderCurrent(){}, setFollow(){}, showView(){}, loadWaveform(){},
+    api:async url => {
+      calls.push(url);
+      if (!available) throw new Error('read failed');
+      return {item:{id:'sample'},runs:[]};
+    },
+    initialize(){ throw new Error('A record retry should not reinitialize the workbench'); },
+  };
+  vm.createContext(context);
+  vm.runInContext(section('  let retryRecord =', '  async function requestOnce(') +
+    section("  $('global-dismiss').addEventListener", '  function showView(') +
+    section('  async function selectRecord(', '  function renderCurrent('), context);
+  assert.equal(await context.selectRecord('sample','v1'), false);
+  assert.equal($('global-retry').textContent, '重试打开');
+  canLeave = false;
+  await $('global-retry').click();
+  assert.deepEqual(calls, ['/api/interviews/sample?run=v1']);
+  assert.equal(context.current, null);
+  assert.equal($('global-error').hidden, false);
+  canLeave = available = true;
+  await $('global-retry').click();
+  assert.deepEqual(calls, ['/api/interviews/sample?run=v1','/api/interviews/sample?run=v1']);
+  assert.equal($('global-error').hidden, true);
+  context.reportError(new Error('unrelated error'));
+  await context.selectRecord('sample','v2');
+  assert.equal($('global-error').hidden, false);
+  assert.equal($('global-error-text').textContent, 'unrelated error');
+  assert.equal($('global-retry').textContent, '重试连接');
+});

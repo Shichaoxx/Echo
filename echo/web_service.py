@@ -604,8 +604,22 @@ class WebHandler(BaseHTTPRequestHandler):
             # Navigating away or cancelling a media request is a normal client
             # disconnect. Do not attempt a second response on a closed socket.
             return
-        except (OSError, sqlite3.Error):
-            self.json({"error": "无法访问本机数据，请检查目录权限和可用空间。"}, 500)
+        except PermissionError as exc:
+            target = Path(os.fsdecode(exc.filename)) if exc.filename else None
+            message = "Echo 没有权限访问" + (f"「{target.name}」。" if target else "请求的文件或目录。")
+            if sys.platform == "darwin" and target and target.is_relative_to(Path.home() / "Desktop"):
+                message += "请在 macOS「系统设置 → 隐私与安全性 → 文件与文件夹」中检查桌面文件夹访问权限。"
+            self.json({"error": message, "code": "file_permission_denied"}, 422)
+        except sqlite3.Error as exc:
+            reason = getattr(exc, "sqlite_errorname", None)
+            message = f"无法访问本机面试台账（{reason or 'SQLite'}）。"
+            self.json({"error": message, "code": "ledger_error"}, 500)
+        except OSError as exc:
+            if exc.errno in (errno.ENOSPC, errno.EDQUOT):
+                self.json({"error": "存储空间或配额不足，无法写入本机资料。", "code": "storage_full"}, 507)
+            else:
+                reason = errno.errorcode.get(exc.errno, "I/O")
+                self.json({"error": f"本机文件读写失败（{reason}）。", "code": "file_io_error"}, 500)
 
     def get_api(self, path, query):
         service = self.service

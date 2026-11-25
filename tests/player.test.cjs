@@ -25,6 +25,14 @@ test('scrubbing re-enables follow and reveals text while paused, including silen
   assert.equal(state.selected,0);
   assert.deepEqual(calls[1],['seek',22]);
 });
+test('wave previews use original timestamps and leave transcript gaps empty', () => {
+  const state = vm.createContext({segments: () => [{start: 100, end: 120, text: '  一段回答  '}], time: String});
+  vm.runInContext(source.slice(source.indexOf('  function wavePreviewAt('), source.indexOf("  $('wave-track').addEventListener('pointermove'")), state);
+  assert.equal(state.wavePreviewAt(100).timestamp, '100');
+  assert.equal(state.wavePreviewAt(119).excerpt, '一段回答');
+  assert.equal(state.wavePreviewAt(120).excerpt, '');
+  assert.equal(state.wavePreviewAt(0).excerpt, '');
+});
 const context = vm.createContext({});
 vm.runInContext(source.slice(source.indexOf('  function parsePlaybackTime('), source.indexOf('  function clearClip(')), context);
 test('time entry accepts seconds, minutes and hours with fractional seconds', () => {
