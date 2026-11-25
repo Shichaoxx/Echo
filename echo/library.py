@@ -55,6 +55,12 @@ def inferred_metadata(item: dict):
                 day = year + "-" + day
         except ValueError:
             pass
+    # A dated folder names the company explicitly between the divider and round.
+    # The inferred name also becomes a directory component in company-layout exports.
+    if company == "未分类" and day and len(parts) == 2 and round_match:
+        candidate = subject[:round_match.start()].strip()
+        if candidate and candidate not in {".", ".."} and not re.search(r"[/\\\x00-\x1f]", candidate):
+            company = candidate
     return dict(company=company, round=round_match.group() if round_match else "轮次未标注",
                 date=day, tags="", archived=False)
 

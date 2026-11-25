@@ -26,6 +26,22 @@ class LibraryTests(unittest.TestCase):
             self.assertEqual(saved['interviews']['a']['date'], '2026-09-10')
             self.assertTrue(saved['interviews']['b']['archived'])
 
+    def test_dated_folder_groups_unlisted_company_and_preserves_manual_override(self):
+        for company, stage in [('星图研发中心', '一面'), ('42 云舟', '二面'), ('Example Labs', 'HR 面')]:
+            with self.subTest(company=company):
+                item = {'id': 'sample', 'title': f'2026 年 07 月 08 日 —— {company} {stage} / recording'}
+                result = library.metadata(item, {})
+                self.assertEqual((result['company'], result['round'], result['date']),
+                                 (company, stage, '2026-07-08'))
+                stored = {'interviews': {'sample': {'company': '手动分组'}}}
+                self.assertEqual(library.metadata(item, stored)['company'], '手动分组')
+
+    def test_missing_or_invalid_company_stays_unclassified(self):
+        for company in ['', '.', '..', '嵌套/目录', '额外\\目录']:
+            with self.subTest(company=company):
+                title = f'2026-07-08 —— {company} 二面'
+                self.assertEqual(library.inferred_metadata({'title': title})['company'], '未分类')
+
     def test_corrupt_store_is_not_silently_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
