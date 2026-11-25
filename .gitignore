@@ -42,7 +42,7 @@ library.json
 paths.json
 echos/
 
-# Personal memory and generated review files (scanner also checks forced adds).
+# Personal memory and generated review files
 memory/
 Memory/
 MEMORY/
@@ -65,10 +65,11 @@ review.json
 preferences.json
 source_path.txt
 
-# Protocol documentation and generic Markdown templates remain publishable.
-!docs/memory.md
-!docs/templates/**/
-!docs/templates/**/*.md
+# Downloaded minutes contain transcript evidence and local edits.
+echo-minutes-handoff.txt
+echo-minutes-draft.json
+echo-minutes.json
+Echo-智能纪要-v*.md
 
 # Managed library state and manifests
 .state/

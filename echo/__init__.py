@@ -1,1 +1,0 @@
-"""Echo local transcription workspace."""
