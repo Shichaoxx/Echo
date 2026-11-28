@@ -73,8 +73,8 @@ function Library({ start }: { start: boolean }) {
           <p role="status">正在打开资料库…</p>
         ) : !items.length ? (
           <div className="library-empty">
-            <h2>导入第一场面试录音</h2>
-            <p>已有 Echo 转写的录音，可以在导入后直接选择旧转写。</p>
+            <h2>导入面试录音或录屏</h2>
+            <p>可以选择一段录音，也可以选择存放各场面试的文件夹。</p>
             <button className="lib-primary echo-press" onClick={() => setUpload(true)}>
               选择录音
             </button>
@@ -111,6 +111,7 @@ function Library({ start }: { start: boolean }) {
       {upload && (
         <UploadDialog
           onClose={() => setUpload(false)}
+          onFolderImported={() => setAttempt((n) => n + 1)}
           onCreated={(id) => {
             setUpload(false);
             openRecord(id);

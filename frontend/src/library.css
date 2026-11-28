@@ -348,6 +348,51 @@ textarea {
   margin-top: 24px;
   justify-content: flex-end;
 }
+.echo-dialog .folder-import-hint {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+.folder-import-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 4px;
+  max-height: 32dvh;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.folder-import-list li {
+  border-block-start: 1px solid var(--echo-rule);
+}
+.folder-import-list label {
+  margin: 0;
+  padding: 12px 2px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.folder-import-list input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 3px 0;
+  accent-color: var(--echo-link);
+}
+.folder-import-list span {
+  display: grid;
+  gap: 3px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.folder-import-list :is(time, small) {
+  color: var(--echo-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.folder-import-list [role='alert'] {
+  color: var(--echo-link);
+}
+.folder-import-list .import-success {
+  color: var(--echo-sage);
+}
 .library .library-error,
 .echo-dialog .library-error {
   color: var(--echo-link);

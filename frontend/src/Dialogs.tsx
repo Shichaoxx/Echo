@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { explain, get, readJSON, recordingPath, send, timecode } from './api';
+import { collectInterviewMedia } from './folderImport';
 import type { Detail, ImportResult, Recording, Run } from './types';
 
 export function Dialog({
@@ -51,14 +52,73 @@ export function Dialog({
   );
 }
 
+type FolderEntry = ReturnType<typeof collectInterviewMedia>[number] & {
+  selected: boolean;
+  status: 'ready' | 'uploading' | 'done' | 'failed';
+  error?: string;
+};
+
+function FolderPreview({
+  entries,
+  busy,
+  onSelect,
+}: {
+  entries: FolderEntry[];
+  busy: boolean;
+  onSelect: (path: string, selected: boolean) => void;
+}) {
+  if (!entries.length) {
+    return <p role="status">没有找到可导入的录音或视频。请重新选择包含面试媒体的文件夹。</p>;
+  }
+  const imported = entries.filter((entry) => entry.status === 'done').length;
+  return (
+    <>
+      <p role="status">找到 {entries.length} 个媒体文件，已导入 {imported} 个。</p>
+      <ul className="folder-import-list" aria-label="待核对的录音">
+        {entries.map((entry) => (
+          <li key={entry.path}>
+            <label>
+              <input
+                type="checkbox"
+                aria-label={entry.title}
+                checked={entry.selected}
+                disabled={busy || entry.status === 'done'}
+                onChange={(e) => onSelect(entry.path, e.target.checked)}
+              />
+              <span>
+                <strong>{entry.title}</strong>
+                {entry.date && <time dateTime={entry.date}>{entry.date}</time>}
+                <small>{entry.path}</small>
+                {entry.status === 'uploading' && <small role="status">正在导入…</small>}
+                {entry.status === 'done' && <small className="import-success">已导入</small>}
+                {entry.status === 'failed' && <small role="alert">导入失败 · {entry.error}</small>}
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+function uploadRecording(file: File, title: string, date: string) {
+  const params = new URLSearchParams({ title: title.trim(), date });
+  return send<{ recording: Recording }>('/api/recordings?' + params, file);
+}
+
 export function UploadDialog({
   onClose,
   onCreated,
+  onFolderImported,
 }: {
   onClose: () => void;
   onCreated: (id: string) => void;
+  onFolderImported: () => void;
 }) {
   const [media, setMedia] = useState<File>();
+  const mediaInput = useRef<HTMLInputElement>(null);
+  const folderInput = useRef<HTMLInputElement>(null);
+  const [entries, setEntries] = useState<FolderEntry[] | null>(null);
   const [title, setTitle] = useState(''),
     [date, setDate] = useState('');
   const [error, setError] = useState(''),
@@ -69,8 +129,7 @@ export function UploadDialog({
     setBusy(true);
     setError('');
     try {
-      const params = new URLSearchParams({ title: title.trim(), date });
-      const data = await send<{ recording: Recording }>('/api/recordings?' + params, media);
+      const data = await uploadRecording(media, title, date);
       onCreated(data.recording.id);
     } catch (err) {
       setError(explain(err));
@@ -78,47 +137,125 @@ export function UploadDialog({
       setBusy(false);
     }
   }
+  function updateEntry(path: string, changes: Partial<FolderEntry>) {
+    setEntries((current) =>
+      current?.map((entry) => (entry.path === path ? { ...entry, ...changes } : entry)) ?? null,
+    );
+  }
+  const pending = entries?.filter((entry) => entry.selected && entry.status !== 'done') ?? [];
+  const folderAction = pending.some((entry) => entry.status === 'failed') ? '重试所选' : '导入所选';
+  async function importFolder(event: FormEvent) {
+    event.preventDefault();
+    if (busy || !pending.length) return;
+    setBusy(true);
+    let imported = 0;
+    try {
+      for (const entry of pending) {
+        updateEntry(entry.path, { status: 'uploading', error: undefined });
+        try {
+          await uploadRecording(entry.file, entry.title, entry.date);
+          updateEntry(entry.path, { status: 'done' });
+          imported++;
+        } catch (err) {
+          updateEntry(entry.path, { status: 'failed', error: explain(err) });
+        }
+      }
+      if (imported > 0) onFolderImported();
+      if (imported === pending.length) onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <Dialog title="导入录音" onClose={onClose} busy={busy}>
-      <form onSubmit={submit}>
+      <form onSubmit={entries ? importFolder : submit}>
         <label>
           录音或视频
           <input
-            required
+            ref={mediaInput}
+            required={!entries}
             type="file"
             accept="audio/*,video/*,.m4a,.mkv,.wav"
             disabled={busy}
             onChange={(e) => {
               const file = e.target.files?.[0];
+              if (!file) return;
+              setEntries(null);
+              setError('');
+              if (folderInput.current) folderInput.current.value = '';
               setMedia(file);
-              if (file) setTitle(file.name.replace(/\.[^.]+$/, ''));
+              setTitle(file.name.replace(/\.[^.]+$/, ''));
             }}
           />
         </label>
         <label>
-          面试标题
+          选择面试文件夹
           <input
-            required
-            value={title}
-            maxLength={200}
+            ref={folderInput}
+            {...{ webkitdirectory: '' }}
+            type="file"
+            multiple
+            aria-describedby="folder-import-hint"
             disabled={busy}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(event) => {
+              const files = event.currentTarget.files;
+              if (!files) return;
+              const matches = collectInterviewMedia(files);
+              setEntries(matches.map((entry) => ({ ...entry, selected: true, status: 'ready' })));
+              setMedia(undefined);
+              setError('');
+              setTitle('');
+              setDate('');
+              if (mediaInput.current) mediaInput.current.value = '';
+            }}
           />
         </label>
-        <label>
-          面试日期（可选）
-          <input type="date" value={date} disabled={busy} onChange={(e) => setDate(e.target.value)} />
-        </label>
-        {error && (
-          <p className="library-error" role="alert">
-            {error}
-          </p>
+        <p className="folder-import-hint" id="folder-import-hint">
+          可选择一场面试的文件夹，也可选择包含多场面试的上级文件夹。选择后可核对录音。
+        </p>
+        {entries ? (
+          <>
+            <FolderPreview
+              entries={entries}
+              busy={busy}
+              onSelect={(path, selected) => updateEntry(path, { selected })}
+            />
+            {entries.length > 0 && (
+              <footer>
+                <button className="lib-primary echo-press" disabled={busy || !pending.length}>
+                  {busy ? '正在导入…' : folderAction + '（' + pending.length + '）'}
+                </button>
+              </footer>
+            )}
+          </>
+        ) : (
+          <>
+            <label>
+              面试标题
+              <input
+                required
+                value={title}
+                maxLength={200}
+                disabled={busy}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </label>
+            <label>
+              面试日期（可选）
+              <input type="date" value={date} disabled={busy} onChange={(e) => setDate(e.target.value)} />
+            </label>
+            {error && (
+              <p className="library-error" role="alert">
+                {error}
+              </p>
+            )}
+            <footer>
+              <button className="lib-primary echo-press" disabled={busy || !media || !title.trim()}>
+                {busy ? '正在导入…' : '导入并继续'}
+              </button>
+            </footer>
+          </>
         )}
-        <footer>
-          <button className="lib-primary echo-press" disabled={busy || !media || !title.trim()}>
-            {busy ? '正在导入…' : '导入并继续'}
-          </button>
-        </footer>
       </form>
     </Dialog>
   );

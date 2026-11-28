@@ -4,7 +4,7 @@ Echo 把一场面试整理成一篇可以回听的纪要。打开文档，先读
 
 ## 安装 Mac 应用
 
-Echo 支持运行 macOS 15 或更高版本的 Apple Silicon Mac（M 系列芯片）。从[发布页](https://github.com/Shichaoxx/Echo/releases/tag/v1.0.0-alpha.2)下载并打开 `Echo-1.0.0-alpha.2-macOS-arm64.dmg`。首次安装，把 **Echo.app** 拖入「应用程序」。升级时，先退出 Echo，再把 **Echo.app** 拖到原来的安装目录（系统的 `/Applications` 或个人的 `~/Applications`），以免在两个目录中各留一份。出现同名提示时选择「替换」，再从安装目录打开 **Echo**。
+Echo 支持运行 macOS 15 或更高版本的 Apple Silicon Mac（M 系列芯片）。从[发布页](https://github.com/Shichaoxx/Echo/releases/tag/v1.0.0-alpha.3)下载并打开 `Echo-1.0.0-alpha.3-macOS-arm64.dmg`。首次安装，把 **Echo.app** 拖入「应用程序」。升级时，先退出 Echo，再把 **Echo.app** 拖到原来的安装目录（系统的 `/Applications` 或个人的 `~/Applications`），以免在两个目录中各留一份。出现同名提示时选择「替换」，再从安装目录打开 **Echo**。
 
 如果之前装过 **Echo 1.app**，新版会直接打开原有的 1.x 资料库。确认能看到自己的纪要后，可以把「应用程序」里旧的 **Echo 1.app** 移到废纸篓。
 
@@ -34,7 +34,7 @@ launchctl bootout "gui/$(id -u)/io.github.shichaoxx.echo.desktop"
 
 ## 处理自己的录音
 
-1. 打开 Echo，在「最近纪要」选择「导入录音」。从源码运行时，可执行 `./start.command` 并打开[个人资料库](http://127.0.0.1:18771/)。Echo 会复制音频或带音轨的视频，原文件留在原处。
+1. 打开 Echo，在「最近纪要」选择「导入录音」。要导入多场，点「选择面试文件夹」并选中总目录，例如 `面试/`。Echo 会列出 `面试/公司与轮次/录屏.mp4` 这样的录屏，用所在文件夹命名。也可以直接选某一场的文件夹，或只选一个媒体文件。核对列表后再导入，原文件留在原处。从源码运行时，可执行 `./start.command` 并打开[个人资料库](http://127.0.0.1:18771/)。
 2. 点击「开始本地转写」。从源码运行时，首次配置见下节。如果已有 0.x 的转写，选择同一原录音，再导入该次转写的 `transcript.json`。Echo 会核对媒体摘要、片段位置和实际覆盖范围。旧文件缺少媒体摘要时仍可读文字。
 3. 选择「交给 Codex 生成」，把交接文字复制给 Codex，请它返回所要求的 JSON 文件。回到本场面试导入。Echo 在本机校验引用、解析时间并保存纪要。
 4. 点击「修订正文」可以调整文字和金句解读。「操作」里可以切换历史修订、导出 Markdown、打开逐字稿，或再次生成。重新转写会留下独立版本。旧纪要保留生成时的逐字引文。
@@ -77,7 +77,7 @@ cd frontend && npx playwright test
 python3 scripts/build_macos.py --model-dir "/path/to/whisper-turbo"
 ```
 
-可指定包含 `config.json` 和 `weights.safetensors` 的已有模型目录，也可省略 `--model-dir`，由脚本下载固定版本并校验 SHA-256。安装镜像及校验文件写入 `dist/v1.0.0-alpha.2/`。第三方软件的许可证及来源随应用分发。
+可指定包含 `config.json` 和 `weights.safetensors` 的已有模型目录，也可省略 `--model-dir`，由脚本下载固定版本并校验 SHA-256。安装镜像及校验文件写入 `dist/v1.0.0-alpha.3/`。第三方软件的许可证及来源随应用分发。
 
 如有 Developer ID 身份和已配置的公证凭据，可传入 `--identity` 和 `--notary-profile` 构建签名、公证的发行包。要验收最终产物，挂载 DMG 后，用下面的命令从空的临时资料库导入示例录音并实际完成本机转写：
 

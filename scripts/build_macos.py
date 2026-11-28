@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RECIPES = ROOT / "scripts/macos"
 VERSION = json.loads((ROOT / "frontend/package.json").read_text())["version"]
-BUILD_NUMBER = "2"  # Increase for each release, including prereleases.
+BUILD_NUMBER = "3"  # Increase for each release, including prereleases.
 APP_NAME = "Echo"
 STEM = f"Echo-{VERSION}-macOS-arm64"
 MACOS_MIN = "15.0"

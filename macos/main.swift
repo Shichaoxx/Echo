@@ -249,8 +249,14 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUIDele
     func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
         let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = parameters.allowsMultipleSelection
+        panel.canChooseFiles = !parameters.allowsDirectories
         panel.canChooseDirectories = parameters.allowsDirectories
+        panel.allowsMultipleSelection = !parameters.allowsDirectories && parameters.allowsMultipleSelection
+        if parameters.allowsDirectories {
+            panel.title = "选择面试文件夹"
+            panel.prompt = "选择此文件夹"
+            panel.message = "可以选择存放各场面试的总目录，也可以只选一场面试的文件夹。"
+        }
         panel.beginSheetModal(for: window) { response in completionHandler(response == .OK ? panel.urls : nil) }
     }
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
