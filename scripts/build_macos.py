@@ -1,4 +1,4 @@
-"""Build Echo 1 for Apple Silicon with a self-contained offline transcription runtime."""
+"""Build Echo for Apple Silicon with a self-contained offline transcription runtime."""
 
 import argparse
 import hashlib
@@ -16,6 +16,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RECIPES = ROOT / "scripts/macos"
 VERSION = json.loads((ROOT / "frontend/package.json").read_text())["version"]
+BUILD_NUMBER = "2"  # Increase for each release, including prereleases.
+APP_NAME = "Echo"
 STEM = f"Echo-{VERSION}-macOS-arm64"
 MACOS_MIN = "15.0"
 PYTHON_ARCHIVE = "cpython-3.13.18+20261124-aarch64-apple-darwin-install_only_stripped.tar.gz"
@@ -127,8 +129,8 @@ def configure_app(resources, binary):
         ROOT / "macos/main.swift", "-o", binary)
     manifest = dict(
         CFBundleExecutable=binary.name, CFBundleIdentifier="io.github.shichaoxx.echo.v1",
-        CFBundleName="Echo 1", CFBundleDisplayName="Echo 1", CFBundlePackageType="APPL",
-        CFBundleShortVersionString=VERSION.split("-")[0], CFBundleVersion="1",
+        CFBundleName=APP_NAME, CFBundleDisplayName=APP_NAME, CFBundlePackageType="APPL",
+        CFBundleShortVersionString=VERSION.split("-")[0], CFBundleVersion=BUILD_NUMBER,
         EchoReleaseVersion=VERSION, LSMinimumSystemVersion=MACOS_MIN, CFBundleIconFile="Echo.icns",
         NSHighResolutionCapable=True,
         NSAppTransportSecurity={"NSAllowsLocalNetworking": True},
@@ -209,7 +211,7 @@ def build(args, tmp):
     run("npm", "ci", "--no-audit", "--no-fund", cwd=ROOT / "frontend")
     run("npm", "run", "build", cwd=ROOT / "frontend")
     stage = tmp / "image"
-    app = stage / "Echo 1.app"
+    app = stage / f"{APP_NAME}.app"
     binary = app / "Contents/MacOS/Echo"
     binary.parent.mkdir(parents=True)
     resources = app / "Contents/Resources"
@@ -226,7 +228,7 @@ def build(args, tmp):
     (stage / "Applications").symlink_to("/Applications")
     image = tmp / (STEM + ".dmg")
     print(f"Creating disk image for {app}", flush=True)
-    run("hdiutil", "create", "-fs", "HFS+", "-format", "UDZO", "-volname", "Echo 1", "-srcfolder", stage, image)
+    run("hdiutil", "create", "-fs", "HFS+", "-format", "UDZO", "-volname", APP_NAME, "-srcfolder", stage, image)
     if args.identity != "-":
         run("codesign", "--timestamp", "--sign", args.identity, image)
     if args.notary_profile:

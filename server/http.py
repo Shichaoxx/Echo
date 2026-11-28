@@ -87,7 +87,7 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/api/bootstrap" and self.command in {"GET", "HEAD"}:
                     cookie = f"{self.server.cookie_name}={self.server.session}; Path=/; HttpOnly; SameSite=Strict"
                     return self.json(
-                        {"csrf": self.server.csrf, "version": "1.0.0-alpha.1"},
+                        {"csrf": self.server.csrf, "version": "1.0.0-alpha.2"},
                         headers={"Set-Cookie": cookie},
                     )
                 cookies = SimpleCookie(self.headers.get("Cookie", ""))

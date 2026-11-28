@@ -58,11 +58,11 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUIDele
             let item = menu.addItem(withTitle: label, action: action, keyEquivalent: key)
             item.target = target
         }
-        let app = menu("Echo 1")
-        add("关于 Echo 1", #selector(NSApplication.orderFrontStandardAboutPanel(_:)), "", app, NSApp)
+        let app = menu("Echo")
+        add("关于 Echo", #selector(NSApplication.orderFrontStandardAboutPanel(_:)), "", app, NSApp)
         app.addItem(.separator())
-        add("隐藏 Echo 1", #selector(NSApplication.hide(_:)), "h", app, NSApp)
-        add("退出 Echo 1", #selector(NSApplication.terminate(_:)), "q", app, NSApp)
+        add("隐藏 Echo", #selector(NSApplication.hide(_:)), "h", app, NSApp)
+        add("退出 Echo", #selector(NSApplication.terminate(_:)), "q", app, NSApp)
         let library = menu("资料库")
         add("打开个人资料库", #selector(openPersonal), "", library, self)
         add("打开示例资料库", #selector(openDemo), "", library, self)
@@ -119,7 +119,7 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUIDele
         web.loadHTMLString("", baseURL: nil)
         status.stringValue = "正在打开本机资料库…"
         status.isHidden = false
-        window.title = demo ? "Echo 1 · 示例资料库" : "Echo 1"
+        window.title = demo ? "Echo · 示例资料库" : "Echo"
         let env = ProcessInfo.processInfo.environment
         let data = env[demo ? "ECHO_DEMO_DIR" : "ECHO_DATA_DIR"].map { URL(fileURLWithPath: $0) }
             ?? support.appendingPathComponent(demo ? "Echo 1.x/demo" : "Echo 1.x/library")
@@ -184,7 +184,7 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUIDele
         status.stringValue = "本机资料库暂不可用"
         status.isHidden = false
         let alert = NSAlert()
-        alert.messageText = "无法打开 Echo 1"
+        alert.messageText = "无法打开 Echo"
         alert.informativeText = detail
         alert.addButton(withTitle: "重新打开")
         alert.addButton(withTitle: "退出")

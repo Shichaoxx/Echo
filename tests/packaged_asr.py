@@ -1,6 +1,6 @@
 """Smoke-test real offline speech recognition in a relocated macOS distribution.
 
-    python3 tests/packaged_asr.py "/Volumes/Echo 1/Echo 1.app"
+    python3 tests/packaged_asr.py /Volumes/Echo/Echo.app
 """
 
 import argparse
